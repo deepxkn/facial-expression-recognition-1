@@ -1,0 +1,278 @@
+% Package Name
+\ProvidesPackage{selfdefcommands}
+% The following is from David Liu's 2014 CSC236 class.
+
+% Dependencies
+\RequirePackage{amsmath}
+\RequirePackage{bm}
+\RequirePackage{amsfonts}
+\RequirePackage{mathtools} % Piecewise functions
+\RequirePackage{amsthm}
+\RequirePackage{amssymb} % Required for "does not divide" symbol
+\RequirePackage{listings} % For python code
+\RequirePackage{color}
+\RequirePackage{ulem}
+\RequirePackage[algoruled,lined,longend,linesnumbered,rightnl]{algorithm2e}
+\RequirePackage[ampersand]{easylist}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+% Package providing macros and environments for LaTeX course materials 
+% at the Department of Computer Science, University of Toronto.
+% Copyright 2013, David Liu
+% Version 1.1, Nov 27, 2013
+
+% Semantic names for propositional connectives (and "logical True/False")
+%\newcommand{\NOT}{\neg}
+%\newcommand{\AND}{\wedge}
+%\newcommand{\OR}{\vee}
+\newcommand{\IMP}{\Rightarrow}
+\newcommand{\IFF}{\Leftrightarrow}
+\newcommand{\Iff}{\Longleftrightarrow} % Symbol used in equivalence derivations
+%\newcommand{\TRUE}{\text{TRUE}}
+%\newcommand{\FALSE}{\text{FALSE}}
+
+% Semantic name for a "divides" symbol.
+\newcommand{\DIV}{\mid}
+\newcommand{\NDIV}{\nmid}
+
+% Number sets
+\newcommand{\N}{\mathbb N} % Naturals
+\newcommand{\Z}{\mathbb Z} % Integers
+\newcommand{\Q}{\mathbb Q} % Rationals
+\newcommand{\R}{\mathbb R} % Reals
+\ifdefined\C
+    \renewcommand{\C}{\mathbb C} % Complex numbers
+\else
+    \newcommand{\C}{\mathbb C}
+\fi
+
+% A script font
+\newcommand{\cA}{\mathcal A}
+\newcommand{\cB}{\mathcal B}
+\newcommand{\cC}{\mathcal C}
+\newcommand{\cD}{\mathcal D}
+\newcommand{\cE}{\mathcal E}
+\newcommand{\cF}{\mathcal F}
+\newcommand{\cH}{\mathcal H}
+\newcommand{\cI}{\mathcal I}
+\newcommand{\cJ}{\mathcal J}
+\newcommand{\cL}{\mathcal L}
+\newcommand{\cK}{\mathcal K}
+\newcommand{\cN}{\mathcal N}
+\newcommand{\cO}{\mathcal O}
+\newcommand{\cP}{\mathcal P}
+\newcommand{\cQ}{\mathcal Q}
+\newcommand{\cS}{\mathcal S}
+\newcommand{\cT}{\mathcal T}
+\newcommand{\cV}{\mathcal V}
+\newcommand{\cW}{\mathcal W}
+\newcommand{\cZ}{\mathcal Z}
+
+% Short forms for set notation
+\newcommand{\emp}{\emptyset}
+\newcommand{\bs}{\backslash}
+
+% Math functions
+\newcommand{\floor}[1]{\left \lfloor #1 \right \rfloor} % Floor function
+\newcommand{\ceil}[1]{\left \lceil #1 \right \rceil} % Ceiling function
+\newcommand{\abs}[1]{\left | #1 \right |} % Absolute value
+\DeclareMathOperator{\lcm}{lcm}
+
+% Colors used in Python environment
+\definecolor{pygreen}{rgb}{0.1, 0.6, 0.0}
+\definecolor{pybrown}{rgb}{0.3, 0.1, 0.1}
+
+% Python environment with syntax highlighting, based on listing environment
+\lstnewenvironment
+  {python}
+  {\lstset{
+    basicstyle=\ttfamily,
+    frame=tb,
+    tabsize=2,
+    numbers=left,
+    numbersep=5pt,
+    keywords=[1]{def,if,else,elif,while,for,break,return,continue},
+    keywordstyle=[1]\color{blue}\bfseries,
+    comment=[s][\color{pygreen}]{'''}{'''},
+    comment=[s][\color{pygreen}]{"""}{"""},
+    comment=[l][\color{pybrown}]\#,
+    emph=[2]{len,print,floor,ceil,append,extend},
+    emphstyle=[2]
+    }}
+  {}    
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+% math commands
+\newcommand{\dd}{\, \mathrm{d}} % d for integrals
+
+% tabular environment
+% use multilinecell{A \\ B \\ C \\ D} to create multi-line table cells
+\newcommand{\specialcell}[2][l]{\begin{tabular}[#1]{@{}l@{}}#2\end{tabular}}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+%%  Common macros for the course CSC373H1 at the University of Toronto.
+%%
+%%  Copyright (c) 2014 Francois Pitt <fpitt@cs.utoronto.ca>
+%%  last updated at 16:52 (EDT) on Tue  2 Sep 2014
+
+% TeX trick so that math symbols are bold when text is.
+\let\seiresfb\bfseries\def\bfseries{\boldmath\seiresfb}
+\let\seiresdm\mdseries\def\mdseries{\unboldmath\seiresdm}
+
+% Centered version of \llap and \rlap.
+\providecommand*\clap[1]{\hbox to 0pt{\hss#1\hss}}
+
+% Spacing macros with default argument.
+\providecommand*\vfillstretch[1][1]{\vspace*{\stretch{#1}}}
+\providecommand*\hfillstretch[1][1]{\hspace*{\stretch{#1}}}
+
+% Abbreviations of latin phrases.
+\let\latinabb\empty  % no special formatting
+\providecommand*\ie{\latinabb{i.e., }}
+\providecommand*\eg{\latinabb{e.g., }}
+\providecommand*\etc{\latinabb{etc}}
+\providecommand*\vs{\latinabb{vs. }}
+
+% General fonts and characters.
+\let\longemph\textsl  % alternate way to emphasize
+\let\strong\textbf  % strong emphasis
+\let\code\texttt  % code fragments
+\let\const\textsf  % constants
+\let\var\mathrm  % multi-letter variables
+\let\pred\bm  % predicates
+\providecommand*\stup{\textsuperscript{st}}
+\providecommand*\ndup{\textsuperscript{nd}}
+\providecommand*\rdup{\textsuperscript{rd}}
+\providecommand*\thup{\textsuperscript{th}}
+\newcommand*\bbmath[1]{\ensuremath{\mathbb{#1}}}  % requires amssymb
+\providecommand*\N{\bbmath{N}}  % requires amssymb
+\providecommand*\Z{\bbmath{Z}}  % requires amssymb
+\providecommand*\Q{\bbmath{Q}}  % requires amssymb
+\providecommand*\R{\bbmath{R}}  % requires amssymb
+\providecommand*\bigOh{\mathcal{O}}
+\providecommand*\onehalf{\ensuremath{{}^1\!\!/\!_2}}
+\providecommand*\letlinebreak{\penalty\exhyphenpenalty}
+\providecommand*\halfthinspace{\kern.083333em}
+\providecommand*\dash
+   {\letlinebreak\halfthinspace---\halfthinspace\letlinebreak}
+\let\per\slash  % for convenience
+
+% For defined terms -- requires package ulem.
+\newcommand*\defn[1]{\uline{\textit{#1}}}
+\setlength{\ULdepth}{.2ex}
+
+% General math macros.
+\newcommand*\hiderel[1]{\mathrel{\hphantom{#1}}}
+\providecommand*\comp[1]{\overline{#1}}  % set complement
+\providecommand*\emptystr{\varepsilon}  % empty string
+\providecommand*\lxor{\mathbin\oplus}  % exclusive or
+\providecommand*\cat{\cdot}  % string concatenation
+% Floors and ceilings, with optional size-changing command, e.g.,
+% \floor[\Big]{x/2} becomes '\Big\lfloor{x/2}\Big\rfloor'.
+\providecommand*\floor[2][]{{#1\lfloor}{#2}{#1\rfloor}}
+\providecommand*\ceil[2][]{{#1\lceil}{#2}{#1\rceil}}
+\providecommand*\lcm{\operatorname{lcm}}  % requires amsmath
+\providecommand*\size{\operatorname{size}}  % requires amsmath
+\providecommand*\len{\operatorname{len}}  % requires amsmath
+\providecommand*\divides{\mathrel{|}}
+
+% Redefined symbols from amssymb.
+\renewcommand*\emptyset{\varnothing}  % rounder than default
+\let\bigiff\iff
+\renewcommand*\iff{\mathrel{\Leftrightarrow}}  % smaller than default
+\let\bigimplies\implies
+\renewcommand*\implies{\mathrel{\Rightarrow}}  % smaller than default
+\renewcommand*\ge{\geqslant}  % with slanted line under the > sign
+\renewcommand*\le{\leqslant}  % with slanted line under the < sign
+
+% For algorithms, Python-style.
+\let\kw\texttt  % keywords
+\let\proc\textsc  % function names
+\providecommand*\opgets[1]{\mathrel{#1=}}
+\providecommand*\eq{\mathrel{==}}
+\providecommand*\True{\const{True}}
+\providecommand*\False{\const{False}}
+\providecommand*\None{\const{None}}
+\providecommand*\cmod{\mathbin{\%}}
+
+% Checkboxes and checklists.
+% \checkmark already defined in amssymb
+\makeatletter
+\@ifpackageloaded{kpfonts}
+   {\newcommand*\exmark{$\times$}}
+   {\newcommand*\exmark{{\boldmath$\times$}}}
+\makeatother
+\newlength\exmarksize
+\newlength\exmarkdepth
+\newcommand*\checkbox[1][]
+   {\settoheight\exmarksize{\exmark}
+    \settodepth\exmarkdepth{\exmark}
+    \addtolength\exmarksize{-\exmarkdepth}
+    {\setlength\fboxrule{.1ex}\setlength\fboxsep{.1ex}%
+    \fbox{\rule{0pt}{\exmarksize}\makebox[\exmarksize]{\smash{#1}}}}}
+\newcommand*\checkedbox{\checkbox[\raisebox{.1ex}{\kern.2em$\checkmark$}]}
+\newcommand*\exedbox{\checkbox[\exmark]}
+\newenvironment*{checklist}{\begin{list}{\checkbox}{}}{\end{list}}
+\newcommand*\checkeditem{\item[\checkedbox]}
+\newcommand*\exeditem{\item[\exedbox]}
+\newcommand*\boxeditem[1][]{\item[{\checkbox[#1]}]}
+
+% Environment for transition diagrams (requires tikz package).
+\newenvironment*{transitiondiagram}[1][]
+   {\begin{tikzpicture}[initial text=,>=latex,
+        every state/.style={inner sep=1pt,minimum size=1.75em},
+        state accepting/.style={inner sep=0pt},
+        loop right/.style={right,out=340,in=20,loop},
+        loop above/.style={above,out=70,in=110,loop},
+        loop left/.style={left,out=160,in=200,loop},
+        loop below/.style={below,out=250,in=290,loop}]%
+    \tikzset{#1}\relax}
+   {\end{tikzpicture}}
+
+% 373-specific: fonts and symbols.
+\let\symb\mathord  % for symbols
+\let\lang\textsc  % for languages
+\let\class\textsl  % for complexity classes
+\providecommand*\mL{\mathrm{L}}  % TM move left symbol
+\providecommand*\mR{\mathrm{R}}  % TM move right symbol
+\providecommand*\mS{\mathrm{S}}  % TM stay put symbol
+\providecommand*\B{\symb\sqcup}  % blank symbol for TMs
+\providecommand*\encode[1]{e(#1)}  % for inputs
+\providecommand*\reduceto{\le}  % many-one reduction
+\providecommand*\polyred{\mathrel{\le_p}}  % polytime reducibility
+
+% 373-specific: standard complexity classes and languages.
+\providecommand*\co{\class{co}}
+\renewcommand*\L{\class{L}}
+\providecommand*\NL{\class{NL}}
+\renewcommand*\P{\class{P}}
+\providecommand*\NP{\class{NP}}
+\providecommand*\EXP{\class{EXP}}
+\providecommand*\NEXP{\class{NEXP}}
+\providecommand*\TIME{\class{TIME}}
+\providecommand*\NTIME{\class{NTIME}}
+\providecommand*\SPACE{\class{SPACE}}
+\providecommand*\NSPACE{\class{NSPACE}}
+\providecommand*\CNF{\lang{CNF-}}
+\providecommand*\SAT{\lang{SAT}}
+
+% Macros for drawing "underline" rules and half-boxes.
+\providecommand*\urule[2][.5pt]{\rule[-.4ex]{#2}{#1}} % "underline" rule
+% Underlined text box (with optional positioning argument).
+\providecommand*\ubox[3][c]{\rlap{\urule{#2}}\makebox[#2][#1]{#3}}
+% Underlined text box with caption (and optional caption positioning).
+\providecommand*\capbox[5][c]{\ifx\empty#2\empty
+    \else\rlap{\raisebox{-\baselineskip}{\makebox[#3][#1]{#2}}}\fi
+    \ubox[#4]{#3}{#5}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\x}{\bm{x}}
+\newcommand{\X}{\bm{X}}
+\newcommand{\y}{\bm{y}}
+\newcommand{\z}{\bm{z}}
+\newcommand{\w}{\bm{w}}
+\newcommand{\E}{\text{E}}
