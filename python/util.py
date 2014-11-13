@@ -8,7 +8,7 @@ def load_labeled_training():
     images = labeled['tr_images']
 
     # permute dimensions so that the number of instances is first
-    np.transpose(images, (1, 2, 0))
+    images = np.transpose(images, [2, 0, 1])
 
     return images, labels
 
@@ -17,7 +17,7 @@ def load_unlabeled_training():
     images = unlabeled['unlabeled_images']
 
     # permute dimensions so that the number of instances is first
-    np.transpose(images, (1, 2, 0))
+    images = np.transpose(images, (2, 0, 1))
 
     return images
 
