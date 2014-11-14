@@ -112,9 +112,12 @@ class LeNetConvPoolLayer(object):
 
 
 def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
+                    nkerns=[20, 50], batch_size=5,
+                    filter_size = (5, 5),
+                    pool_size = (2, 2),
+                    num_input_feature_maps=1,
                     training_data=None, validation_data=None,
-                    test_data=None, image_dim=32,
-                    nkerns=[20, 50], batch_size=5):
+                    test_data=None, image_dim=32):
     """
     :type learning_rate: float
     :param learning_rate: learning rate used (factor for the stochastic
@@ -175,37 +178,43 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     ######################
     print '... building the model'
 
+    input_size = (image_dim, image_dim)
+
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
     # to a 4D tensor, compatible with our LeNetConvPoolLayer
-    layer0_input = x.reshape((batch_size, 1, image_dim, image_dim))
+    layer0_input = x.reshape((batch_size, num_input_feature_maps, input_size[0], input_size[1]))
 
     # Construct the first convolutional pooling layer:
-    # filtering reduces the image size to (image_dim-5+1 , image_dim-5+1)
+    # filtering reduces the image size
     # maxpooling reduces this further by a half
     # 4D output tensor is thus of shape (batch_size, nkerns[0],
-    # ((image_dim-5+1)/2, (image_dim-5+1)/2))
+    # new_image_dim, new_image_dim)
     layer0 = LeNetConvPoolLayer(
         rng,
         input=layer0_input,
-        image_shape=(batch_size, 1, image_dim, image_dim),
-        filter_shape=(nkerns[0], 1, 5, 5),
-        poolsize=(2, 2)
+        image_shape=(batch_size, num_input_feature_maps, input_size[0], input_size[1]),
+        filter_shape=(nkerns[0], num_input_feature_maps, filter_size[0], filter_size[1]),
+        poolsize=pool_size
     )
 
-    new_image_dim = (image_dim-5+1)/2
+    input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
+                  (input_size[1] - filter_size[1] + 1) / pool_size[1])
 
     # Construct the second convolutional pooling layer
-    # filtering reduces the new image size to as before
-    # maxpooling reduces this further to by a half
+    # filtering reduces the new image size as before
+    # maxpooling reduces this further by a half
     # 4D output tensor is thus of shape (nkerns[0], nkerns[1],
     # (((((image_dim-5+1)/2)-5+1)/2), (((image_dim-5+1)/2)-5+1)/2))
     layer1 = LeNetConvPoolLayer(
         rng,
         input=layer0.output,
-        image_shape=(batch_size, nkerns[0], new_image_dim, new_image_dim),
-        filter_shape=(nkerns[1], nkerns[0], 5, 5),
-        poolsize=(2, 2)
+        image_shape=(batch_size, nkerns[0], input_size[0], input_size[1]),
+        filter_shape=(nkerns[1], nkerns[0], filter_size[0], filter_size[1]),
+        poolsize=pool_size
     )
+
+    input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
+                  (input_size[1] - filter_size[1] + 1) / pool_size[1])
 
     # the HiddenLayer being fully-connected, it operates on 2D matrices of
     # shape (batch_size, num_pixels) (i.e matrix of rasterized images).
@@ -217,7 +226,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     layer2 = HiddenLayer(
         rng,
         input=layer2_input,
-        n_in=nkerns[1] * 4 * 4,
+        n_in=nkerns[1] * input_size[0] * input_size[1],
         n_out=500,
         activation=tensor.tanh
     )
@@ -251,7 +260,6 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     # create a list of all model parameters to be fit by gradient descent
     params = layer3.params + layer2.params + layer1.params + layer0.params
 
-    print(params)
     # create a list of gradients for all model parameters
     grads = tensor.grad(cost, params)
 
@@ -264,30 +272,6 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
         (param_i, param_i - learning_rate * grad_i)
         for param_i, grad_i in zip(params, grads)
     ]
-
-###############################################################################
-    # DEBUGGING
-    # there is an issue with the dimensions of the third variable in the list
-    # grads: the dimensions do not match the corresponding third variable in
-    # params; the dot product fails
-    # ERROR MESSAGE:
-        # ValueError: Shape mismatch: x has 1250 cols (and 5 rows) but y has 800 rows (and 500 cols)
-        # Apply node that caused the error: Dot22(Elemwise{tanh,no_inplace}.0, W)
-        # Inputs shapes: [(5, 1250), (800, 500)]
-        # Inputs strides: [(10000, 8), (4000, 8)]
-        # Inputs types: [TensorType(float64, matrix), TensorType(float64, matrix)]
-    print params
-    print grads
-    print updates[0][0].shape.eval()
-    print updates[1][0].shape.eval()
-    print updates[2][0].shape.eval()
-    print updates[3][0].shape.eval()
-    print updates[4][0].shape.eval()
-    print updates[5][0].shape.eval()
-    print updates[6][0].shape.eval()
-    print updates[7][0].shape.eval()
-    print updates[7][0].shape.eval()
-###############################################################################
 
     train_model = theano.function(
         [index],
@@ -326,12 +310,10 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
 
     while (epoch < n_epochs) and (not done_looping):
         epoch = epoch + 1
-        print epoch
         for minibatch_index in xrange(n_train_batches):
 
             iter = (epoch - 1) * n_train_batches + minibatch_index
 
-            print 'training @ iter = ', iter
             if iter % 100 == 0:
                 print 'training @ iter = ', iter
             cost_ij = train_model(minibatch_index)
