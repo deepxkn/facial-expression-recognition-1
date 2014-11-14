@@ -1,23 +1,39 @@
 import scipy.io
 import numpy as np
 
-def load_labeled_training():
+def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
-    labels = [l[0] for l in labels]
+    labels = np.asarray([l[0] for l in labels])
     images = labeled['tr_images']
 
     # permute dimensions so that the number of instances is first
+    x, y, n = images.shape
     images = np.transpose(images, [2, 0, 1])
+    assert images.shape == (n, x, y)
+
+    # flatten the pixel dimensions
+    if flatten is True:
+        n, x, y = images.shape
+        images = images.reshape(-1, images.shape[0]).T
+        assert images.shape == (n, x*y)
 
     return images, labels
 
-def load_unlabeled_training():
+def load_unlabeled_training(flatten=False):
     unlabeled = scipy.io.loadmat('../unlabeled_images.mat')
     images = unlabeled['unlabeled_images']
 
     # permute dimensions so that the number of instances is first
-    images = np.transpose(images, (2, 0, 1))
+    x, y, n = images.shape
+    images = np.transpose(images, [2, 0, 1])
+    assert images.shape == (n, x, y)
+
+    # flatten the pixel dimensions
+    if flatten is True:
+        n, x, y = images.shape
+        images = images.reshape(-1, images.shape[0]).T
+        assert images.shape == (n, x*y)
 
     return images
 
@@ -140,4 +156,4 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                         tile_row * (H + Hs): tile_row * (H + Hs) + H,
                         tile_col * (W + Ws): tile_col * (W + Ws) + W
                     ] = this_img * c
-        return out_array
+                    return out_array
