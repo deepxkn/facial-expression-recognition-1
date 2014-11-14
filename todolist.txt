@@ -38,6 +38,10 @@ rithms used, etc.
 (e) references to any code, methods, or ideas that you used that are not your own
 
 (f) any special instructions that are required to run your code
+===============================================================================
+Kaggle file submission requirements
+===============================================================================
+- make sure to add a header!
 
 ===============================================================================
 Data
@@ -50,6 +54,7 @@ Data
 Pre-processing
 ===============================================================================
 - subtract the mean RGB value, computed on the training set, from each pixel \cite{SimonyanZ14a}
+- whitening the data?
 
 
 ===============================================================================
@@ -66,6 +71,7 @@ Validation
 ===============================================================================
 Architecture
 ===============================================================================
+- decay the learning weight in each epoch
 
 
 
