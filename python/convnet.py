@@ -25,6 +25,7 @@ import sys
 import time
 
 import numpy as np
+from PIL import Image
 
 import theano
 import theano.tensor as tensor
@@ -111,8 +112,8 @@ class LeNetConvPoolLayer(object):
         self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
-                    nkerns=[20, 50], batch_size=5,
+def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
+                    nkerns=[20, 50], batch_size=50,
                     filter_size = (5, 5),
                     pool_size = (2, 2),
                     num_input_feature_maps=1,
@@ -196,6 +197,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
         filter_shape=(nkerns[0], num_input_feature_maps, filter_size[0], filter_size[1]),
         poolsize=pool_size
     )
+
 
     input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
                   (input_size[1] - filter_size[1] + 1) / pool_size[1])
@@ -356,6 +358,28 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                 done_looping = True
                 break
 
+###############################################################################
+# DEBUGGING
+###############################################################################
+# need to get the dimensions right for visualising the filters
+
+        # Plot filters after each training epoch
+        # Construct image from the weight matrix
+        #image = Image.fromarray(
+        #    tile_raster_images(
+        #        X=layer1.W.get_value(borrow=True).T,
+        #        img_shape=(image_dim, image_dim),
+        #        tile_shape=(10, 10),
+        #        tile_spacing=(1, 1)
+        #    )
+        #)
+
+        #image.save('filters_at_epoch_%i.png' % epoch)
+        #plotting_stop = time.clock()
+        #plotting_time += (plotting_stop - plotting_start)
+
+###############################################################################
+
     end_time = time.clock()
     print('Optimization complete.')
     print('Best validation score of %f %% obtained at iteration %i, '
@@ -370,7 +394,8 @@ if __name__ == '__main__':
     assert labeled_training.shape == (2925, 1024)
 
     # dumb validation set partition for now
-    valid_split = labeled_training.shape[0] // 3
+    shuffle_in_unison(labeled_training, labeled_training_labels)
+    valid_split = labeled_training.shape[0] // 2
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
