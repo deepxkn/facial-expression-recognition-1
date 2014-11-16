@@ -17,8 +17,7 @@ def load_labeled_training(flatten=False):
     # flatten the pixel dimensions
     if flatten is True:
         n, x, y = images.shape
-        images = images.reshape(n, x*y)
-        #images = images.reshape(-1, images.shape[0]).T
+        images = images.reshape(-1, images.shape[0]).T
         assert images.shape == (n, x*y)
 
     return images, labels
