@@ -8,7 +8,7 @@ from sklearn import cross_validation
 def main():
     N_TREE = 101
     rfc = RandomForestClassifier(n_estimators=N_TREE)
-    proj_test, labels = load_pca_proj()
+    proj_test, labels = load_pca_proj(K=100)
     shuffle_in_unison(proj_test, labels)
     scores = cross_validation.cross_val_score(rfc, proj_test, labels, cv=10)
     print scores
