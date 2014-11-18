@@ -5,16 +5,62 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from sklearn.decomposition import PCA
 
+
+"""
+Given a set of labels and a file name,
+produce an output file which we can submit
+to the kaggle website.
+"""
+def write_results(labels, file):
+    with open(file, 'w') as out:
+        out.write("Id,Prediction\n")
+        for i, l in enumerate(labels):
+            out.write(','.join([str(i+1),str(l)])+"\n")
+        if len(labels) < 1253:
+            for i in range(len(labels), 1253):
+                out.write(','.join([str(i+1),"0"])+"\n")
+
+"""
+Load in labeled images and labes, after having run
+ZCA and PCA preprocessing on them, trained
+from unlabeled images.
+"""
 def load_pca_proj(K=30):
     test_images, labels = load_labeled_training(flatten=True)
+    train_images = load_unlabeled_training(flatten=True)
+    test_images -= np.mean(test_images)
+    train_images -= np.mean(train_images)
+    pca = PCA(n_components=K).fit(train_images)
+    proj_test = pca.transform(test_images)
+    shuffle_in_unison(proj_test, labels)
+    return proj_test, labels
+
+def load_pca_test(K=30):
+    test_images = load_public_test(flatten=True)
     train_images = load_unlabeled_training(flatten=True)
     zca = ZCA().fit(train_images)
     test_images = zca.transform(test_images)
     train_images = zca.transform(train_images)
     pca = PCA(n_components=K).fit(train_images)
     proj_test = pca.transform(test_images)
-    return test_images, labels
+    return proj_test
 
+def load_public_test(flatten=False):
+    test = scipy.io.loadmat('../public_test_images.mat')
+    images = test['public_test_images']
+    # permute dimensions so that the number of instances is first
+    x, y, n = images.shape
+    images = np.transpose(images, [2, 0, 1])
+    assert images.shape == (n, x, y)
+
+    # flatten the pixel dimensions
+    if flatten is True:
+        n, x, y = images.shape
+        images = images.reshape(-1, images.shape[0]).T
+        assert images.shape == (n, x*y)
+
+    return images
+    
 def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
