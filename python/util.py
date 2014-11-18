@@ -2,6 +2,14 @@ import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from sklearn.decomposition import PCA
+
+def load_pca_proj(K=30):
+    test_images, labels = load_labeled_training(flatten=True)
+    train_images = load_unlabeled_training(flatten=True)
+    pca = PCA(n_components=K).fit(train_images)
+    proj_test = pca.transform(test_images)
+    return test_images, labels
 
 def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')

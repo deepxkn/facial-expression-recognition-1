@@ -53,7 +53,7 @@ def main():
     K = 30  # Number of dimensions to PCA down to.
     test_image, test_label = load_labeled_training(flatten=True)
     train_image = load_unlabeled_training(flatten=True)
-    pca = PCA(n_components=K).fit(test_image)
+    pca = PCA(n_components=K).fit(train_image)
     proj_test = pca.transform(test_image)
     #v, mean, projX = pcaimg(train_image.T, K)
     #proj_test = np.dot(v.T, test_image.T).T
