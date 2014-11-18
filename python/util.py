@@ -1,3 +1,4 @@
+from zca import ZCA
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +8,9 @@ from sklearn.decomposition import PCA
 def load_pca_proj(K=30):
     test_images, labels = load_labeled_training(flatten=True)
     train_images = load_unlabeled_training(flatten=True)
+    zca = ZCA().fit(train_images)
+    test_images = zca.transform(test_images)
+    train_images = zca.transform(train_images)
     pca = PCA(n_components=K).fit(train_images)
     proj_test = pca.transform(test_images)
     return test_images, labels
