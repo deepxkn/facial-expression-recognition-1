@@ -56,7 +56,7 @@ def load_public_test(flatten=False):
     # flatten the pixel dimensions
     if flatten is True:
         n, x, y = images.shape
-        images = images.reshape(-1, images.shape[0]).T
+        images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
         assert images.shape == (n, x*y)
 
     return images
