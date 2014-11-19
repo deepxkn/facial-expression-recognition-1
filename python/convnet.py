@@ -1,3 +1,5 @@
+#NB: install latest theano with command
+# pip install --upgrade --no-deps git+git://github.com/Theano/Theano.git
 """This tutorial introduces the LeNet5 neural network architecture
 using Theano.  LeNet5 is a convolutional neural network, good for
 classifying images. This tutorial shows how to build the architecture,
@@ -25,12 +27,15 @@ import sys
 import time
 
 import numpy as np
+from pylearn2.expr.preprocessing import global_contrast_normalize
 from PIL import Image
 
 import theano
 import theano.tensor as tensor
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
+#theano.config.exception_verbosity='high'
+#theano.config.optmizer='None'
 
 from logistic_sgd import *
 from mlp import HiddenLayer
@@ -112,11 +117,10 @@ class LeNetConvPoolLayer(object):
         self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
-                    nkerns=[20, 50], batch_size=50,
+def evaluate_lenet5(learning_rate=0.01, n_epochs=100,
+                    nkerns=[20, 50], batch_size=100,
                     filter_size = (5, 5),
                     pool_size = (2, 2),
-                    num_input_feature_maps=1,
                     training_data=None, validation_data=None,
                     test_data=None, image_dim=32):
     """
@@ -183,7 +187,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
     # to a 4D tensor, compatible with our LeNetConvPoolLayer
-    layer0_input = x.reshape((batch_size, num_input_feature_maps, input_size[0], input_size[1]))
+    layer0_input = x.reshape((batch_size, 1, input_size[0], input_size[1]))
 
     # Construct the first convolutional pooling layer:
     # filtering reduces the image size
@@ -193,11 +197,10 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
     layer0 = LeNetConvPoolLayer(
         rng,
         input=layer0_input,
-        image_shape=(batch_size, num_input_feature_maps, input_size[0], input_size[1]),
-        filter_shape=(nkerns[0], num_input_feature_maps, filter_size[0], filter_size[1]),
+        image_shape=(batch_size, 1, input_size[0], input_size[1]),
+        filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]),
         poolsize=pool_size
     )
-
 
     input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
                   (input_size[1] - filter_size[1] + 1) / pool_size[1])
@@ -234,21 +237,30 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
     )
 
     # classify the values of the fully-connected sigmoidal layer
-    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=10)
+    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=8)
+
 
     # the cost we minimize during training is the NLL of the model
     cost = layer3.negative_log_likelihood(y)
 
+    # create a function to give predictions
+    training_predictions = theano.function(
+        inputs=[index],
+        outputs=[layer3.y_pred],
+        givens={
+            x: train_set_x[index * batch_size: (index + 1) * batch_size]
+        }
+    )
+
     # create a function to compute the mistakes that are made by the model
-    if test_data is not None:
-        test_model = theano.function(
-            [index],
-            layer3.errors(y),
-            givens={
-                x: test_set_x[index * batch_size: (index + 1) * batch_size],
-                y: test_set_y[index * batch_size: (index + 1) * batch_size]
-            }
-        )
+    training_model = theano.function(
+        [index],
+        layer3.errors(y),
+        givens={
+            x: train_set_x[index * batch_size:(index + 1) * batch_size],
+            y: train_set_y[index * batch_size:(index + 1) * batch_size]
+        }
+    )
 
     validate_model = theano.function(
         [index],
@@ -258,6 +270,16 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
             y: valid_set_y[index * batch_size:(index + 1) * batch_size]
         }
     )
+
+    if test_data is not None:
+        test_model = theano.function(
+            [index],
+            layer3.errors(y),
+            givens={
+                x: test_set_x[index * batch_size: (index + 1) * batch_size],
+                y: test_set_y[index * batch_size: (index + 1) * batch_size]
+            }
+        )
 
     # create a list of all model parameters to be fit by gradient descent
     params = layer3.params + layer2.params + layer1.params + layer0.params
@@ -280,8 +302,8 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
         cost,
         updates=updates,
         givens={
-            x: train_set_x[index * batch_size: (index + 1) * batch_size],
-            y: train_set_y[index*batch_size:(index + 1)*batch_size]
+            x: train_set_x[index * batch_size : (index + 1) * batch_size],
+            y: train_set_y[index * batch_size : (index + 1) * batch_size]
         }
     )
     # end-snippet-1
@@ -318,16 +340,29 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
 
             if iter % 100 == 0:
                 print 'training @ iter = ', iter
+
             cost_ij = train_model(minibatch_index)
 
             if (iter + 1) % validation_frequency == 0:
 
-                # compute zero-one loss on validation set
+                # compute zero-one loss on training and validation sets
+                training_losses = [
+                    training_model(i)
+                    for i in xrange(n_train_batches)
+                ]
+                this_training_loss = np.mean(training_losses)
+
+                result = [training_predictions(i) for i in xrange(n_train_batches)]
+                result = np.asarray(result);
+                print result
+
                 validation_losses = [validate_model(i) for i
                                      in xrange(n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
-                print('epoch %i, minibatch %i/%i, validation error %f %%' %
+
+                print('epoch %i, minibatch %i/%i, training error %f %%, validation error %f %%' %
                       (epoch, minibatch_index + 1, n_train_batches,
+                       this_training_loss * 100,
                        this_validation_loss * 100.))
 
                 # if we got the best validation score until now
@@ -391,11 +426,21 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=100,
 
 if __name__ == '__main__':
     labeled_training, labeled_training_labels = load_labeled_training(flatten=True)
+    labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
+
+    from zca import ZCA
+    zca = ZCA().fit(labeled_training)
+    labeled_training = zca.transform(labeled_training)
+    render_matrix(labeled_training[:100,:], flattened=True)
+
+    #render_matrix(labeled_training[:100,:], flattened=True)
+    #labeled_training = global_contrast_normalize(labeled_training, use_std=True)
+    #render_matrix(labeled_training[:100,:], flattened=True)
 
     # dumb validation set partition for now
     shuffle_in_unison(labeled_training, labeled_training_labels)
-    valid_split = labeled_training.shape[0] // 2
+    valid_split = labeled_training.shape[0] // 4
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
