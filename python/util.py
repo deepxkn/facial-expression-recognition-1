@@ -60,7 +60,7 @@ def load_public_test(flatten=False):
         assert images.shape == (n, x*y)
 
     return images
-    
+
 def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
@@ -75,7 +75,7 @@ def load_labeled_training(flatten=False):
     # flatten the pixel dimensions
     if flatten is True:
         n, x, y = images.shape
-        images = images.reshape(-1, images.shape[0]).T
+        images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
         assert images.shape == (n, x*y)
 
     return images, labels
@@ -92,7 +92,7 @@ def load_unlabeled_training(flatten=False):
     # flatten the pixel dimensions
     if flatten is True:
         n, x, y = images.shape
-        images = images.reshape(-1, images.shape[0]).T
+        images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
         assert images.shape == (n, x*y)
 
     return images
@@ -111,7 +111,8 @@ def shuffle_in_unison(a, b):
 """The following function is adapted from A3.
 """
 
-def render_matrix(matrix, ncols=15, show=True):
+def render_matrix(matrix, flattened=False, image_height=None,
+        image_width=None, ncols=15, show=True):
     """Shows matrix as a set of images.
     Plots images in row-major order.
     """
@@ -125,10 +126,21 @@ def render_matrix(matrix, ncols=15, show=True):
     fig, axs = plt.subplots(nrows, ncols)
     axs = axs.ravel()
 
-    for i in xrange(matrix.shape[0]):
-        axs[i].imshow(matrix[i, :, :], cmap = cm.Greys_r,
-            interpolation='none') # for no anti-aliasing
-        axs[i].axis('off')
+    if flattened is True:
+        if image_height is None and image_width is None:
+            image_height = int(np.sqrt(matrix.shape[1]))
+            image_width = int(np.sqrt(matrix.shape[1]))
+        for i in xrange(matrix.shape[0]):
+            image = matrix[i, :]
+            image = image.reshape(image_height, image_width)
+            axs[i].imshow(image, cmap = cm.Greys_r,
+                interpolation='none') # for no anti-aliasing
+            axs[i].axis('off')
+    else:
+        for i in xrange(matrix.shape[0]):
+            axs[i].imshow(matrix[i, :, :], cmap = cm.Greys_r,
+                interpolation='none') # for no anti-aliasing
+            axs[i].axis('off')
 
     # clear empty subplots
     for i in xrange(matrix.shape[0], nrows*ncols):
