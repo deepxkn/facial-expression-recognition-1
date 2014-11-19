@@ -61,6 +61,19 @@ def load_public_test(flatten=False):
 
     return images
 
+def standardize(images):
+    images = images.astype(float)    
+    mean = np.mean(images,axis=1)
+    sd = np.sqrt(np.var(images, axis=1) + 0.01)
+    for i in range(images.shape[0]):
+        for j in range(len(images[i])):
+            images[i][j] -= mean[i]
+
+    for i in range(images.shape[0]):
+        for j in range(len(images[i])):
+            images[i][j] /= sd[i]
+    return images
+     
 def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
