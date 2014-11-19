@@ -26,7 +26,7 @@ def main():
     #for l in labels:
         #d[l] += 1
     #print d
-    #print images.shape 
+    #print images.shape
 
 if __name__ == '__main__':
     main()
