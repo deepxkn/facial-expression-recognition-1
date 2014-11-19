@@ -66,6 +66,17 @@ Validation
   the same identity are not put into both training and validation set. Having one person’s
   face in both training and validation introduces a large noise.
 
+- if dataset is unbalanced, and has a large majority
+  of examples in one class, the classifier may learn
+  to always predict the most frequent class, which still gives low
+  classification error.
+  For instance, if 96% of the examples are of class 1, then always
+  predicting 1 will give 4% error.
+  
+  To check if it is the case, you can compile a function that only
+  computes the classification error given the prediction (not the input!)
+  and the actual target. Then, call that function on your "result" array,
+  and check if you have the same error rate. 
 
 
 ===============================================================================
