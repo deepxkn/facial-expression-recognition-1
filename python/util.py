@@ -28,9 +28,9 @@ from unlabeled images.
 def load_pca_proj(K=30):
     test_images, labels = load_labeled_training(flatten=True)
     train_images = load_unlabeled_training(flatten=True)
-    test_images -= np.mean(test_images)
-    train_images -= np.mean(train_images)
-    pca = PCA(n_components=K).fit(train_images)
+    test_images = standardize(test_images)
+    train_images = standardize(train_images)
+    pca = PCA(n_components=K).fit(test_images)
     proj_test = pca.transform(test_images)
     shuffle_in_unison(proj_test, labels)
     return proj_test, labels
