@@ -56,6 +56,7 @@ Pre-processing
 - subtract the mean RGB value, computed on the training set, from each pixel \cite{SimonyanZ14a}
 - whitening the data?
 
+http://ai.stanford.edu/%7Eang/papers/nipsdlufl10-AnalysisSingleLayerUnsupervisedFeatureLearning.pdf
 
 ===============================================================================
 Validation
