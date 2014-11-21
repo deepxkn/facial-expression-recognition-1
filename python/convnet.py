@@ -27,7 +27,7 @@ import sys
 import time
 
 import numpy as np
-from pylearn2.expr.preprocessing import global_contrast_normalize
+#from pylearn2.expr.preprocessing import global_contrast_normalize
 from PIL import Image
 
 import theano
@@ -237,7 +237,7 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=100,
     )
 
     # classify the values of the fully-connected sigmoidal layer
-    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=8)
+    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=7)
 
 
     # the cost we minimize during training is the NLL of the model
