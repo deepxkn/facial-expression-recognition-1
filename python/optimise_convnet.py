@@ -7,22 +7,22 @@ import pprint
 
 parameters = {
     # hyperparameters
-    'number of epochs' :                    (1000,),
+    'number of epochs' :                    (100,),
     'batch size' :                          (30, 50, 100),
-    'filter size' :                         ((5, 5),),
+    'filter size' :                         ((3, 3), (4, 4), (5, 5),),
+    'number of kernels' :                   ((20, 30, 40), (20, 50, 100)),
     'pool size' :                           ((2, 2),),
-    'learning rate' :                       (10**x for x in range(-4, 1)),
-    'learning rate decay' :                 (None, 0.995),
+    'learning rate' :                       (10**x for x in range(-2, 0)),
+    'learning rate decay' :                 (None,),
     'patience' :                            (10000,),
     'patience increase' :                   (2,),
     'improvement threshold' :               (0.995,),
     # architecture
     'convpool layer activation function':   (tensor.tanh,),
     'hidden layer activation function':     (tensor.tanh,),
-    'number of convpool layers' :           (2, 3),
+    'number of convpool layers' :           (1, 2, 3),
     'number of hidden layers' :             (1, 2),
     'number of hidden units' :              (50, 100, 500, 1000)
-    #'number of hidden units' :              (500, 1000)
 }
 
 experiment_conditions = [dict(zip(parameters, x)) for x in itertools.product(*parameters.values())]
@@ -30,9 +30,9 @@ experiment_conditions = [dict(zip(parameters, x)) for x in itertools.product(*pa
 labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
 labeled_training -= np.mean(labeled_training)
 
-from zca import ZCA
-zca = ZCA().fit(labeled_training)
-labeled_training = zca.transform(labeled_training)
+#from zca import ZCA
+#zca = ZCA().fit(labeled_training)
+#labeled_training = zca.transform(labeled_training)
 #render_matrix(labeled_training[:100,:], flattened=True)
 
 #render_matrix(labeled_training[:100,:], flattened=True)
@@ -57,13 +57,13 @@ for i in range(len(experiment_conditions)):
     pprint.pprint(cond)
     f.write(str(cond))
     f.write('\n')
-    loss = evaluate_lenet5(
+    loss, _ = evaluate_lenet5(
         learning_rate=cond['learning rate'],
         n_epochs=cond['number of epochs'],
         patience=cond['patience'],
         patience_increase=cond['patience increase'],
         improvement_threshold=cond['improvement threshold'],
-        nkerns=[20, 50, 100],
+        nkerns=cond['number of kernels'],
         batch_size=cond['batch size'],
         filter_size =cond['filter size'],
         pool_size = cond['pool size'],
