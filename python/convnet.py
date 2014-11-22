@@ -497,7 +497,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     hidden_layers.append(HiddenLayer(
         rng,
         input=conv_pool_layers[-1].output.flatten(2),
-        n_in=nkerns[-1] * input_size[0] * input_size[1],
+        n_in=nkerns[n_convpool_layers-1] * input_size[0] * input_size[1],
         n_out=n_hidden_units,
         activation=hidden_layer_activation
     ))
@@ -677,7 +677,10 @@ def evaluate_lenet5(initial_learning_rate=0.08,
         test_pred = list(itertools.chain.from_iterable(test_pred))
         test_pred = list(itertools.chain.from_iterable(test_pred))
 
-    return best_validation_loss, test_pred
+        return best_validation_loss, test_pred
+
+    else:
+        return best_validation_loss, None
 
 ###############################################################################
 # DEBUGGING
@@ -739,7 +742,8 @@ if __name__ == '__main__':
     _, test_labels = evaluate_lenet5(
             training_data=(train_data, train_labels),
             validation_data=(valid_data, valid_labels),
-            test_data=test_images
+            test_data=test_images,
+            filter_size=(3, 3)
             )
 
     print test_labels
