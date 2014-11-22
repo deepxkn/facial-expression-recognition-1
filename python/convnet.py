@@ -403,11 +403,12 @@ def evaluate_lenet5(initial_learning_rate=0.08,
                     pool_size = (2, 2),
                     n_convpool_layers = 1,
                     n_hidden_layers = 1,
-                    hidden_layer_sizes = [100, 100],
-                    convpool_layer_activation=tensor.tanh,
-                    hidden_layer_activation=relu,
+##TODO hidden layer sizes
                     dropout=True,
                     dropout_rates = [ 0.2, 0.5, 0.5 ],
+                    n_hidden_units = 100,
+                    convpool_layer_activation='tanh',
+                    hidden_layer_activation='relu',
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -443,6 +444,19 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     # a relative improvement of this much is
                                    # considered significant
     """
+    # determine the activation functions
+    if convpool_layer_activation=='tanh':
+        convpool_layer_activation=tensor.tanh
+    else:
+        raise NotImplementedError
+
+    if hidden_layer_activation=='tanh':
+        hidden_layer_activation=tensor.tanh
+    elif hidden_layer_activation=='relu':
+        hidden_layer_activation=relu
+    else:
+        raise NotImplementedError
+
     if training_data is None or validation_data is None:
         print "No dataset given."
         sys.exit(1)
@@ -755,7 +769,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
         return best_validation_loss, test_pred
 
     else:
-        return best_validation_loss, None
+        return best_validation_loss
 
 ###############################################################################
 # DEBUGGING
