@@ -16,7 +16,11 @@ from theano.tensor.nnet import conv
 #theano.config.exception_verbosity='high'
 theano.config.optmizer='fast_compile'
 
-import util
+import classifiers
+# set the package name to allow relative imports
+if __name__ == "__main__" and __package__ is None:
+    __package__ = "classifiers.convnet"
+from .. import util
 
 
 class ConvPoolLayer(object):
@@ -126,7 +130,6 @@ class HiddenLayer(object):
                            layer
         """
         self.input = input
-        # end-snippet-1
 
         # `W` is initialized with `W_values` which is uniformely sampled
         # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
@@ -166,6 +169,7 @@ class HiddenLayer(object):
             lin_output if activation is None
             else activation(lin_output)
         )
+
         # parameters of the model
         self.params = [self.W, self.b]
 
@@ -189,7 +193,7 @@ class LogisticRegression(object):
     determine a class membership probability.
     """
 
-    def __init__(self, input, n_in, n_out):
+    def __init__(self, input, n_in, n_out, W=None, b=None):
         """ Initialize the parameters of the logistic regression
 
         :type input: theano.tensor.TensorType
@@ -205,26 +209,31 @@ class LogisticRegression(object):
                       which the labels lie
 
         """
-        # start-snippet-1
-        # initialize with 0 the weights W as a matrix of shape (n_in, n_out)
-        self.W = theano.shared(
-            value=np.zeros(
-                (n_in, n_out),
-                dtype=theano.config.floatX
-            ),
-            name='W',
-            borrow=True
-        )
+        if W is None:
+            # initialize with 0 the weights W as a matrix of shape (n_in, n_out)
+            self.W = theano.shared(
+                value=np.zeros(
+                    (n_in, n_out),
+                    dtype=theano.config.floatX
+                ),
+                name='W',
+                borrow=True
+            )
+        else:
+            self.W = W
 
-        # initialize the biases b as a vector of n_out 0s
-        self.b = theano.shared(
-            value=np.zeros(
-                (n_out,),
-                dtype=theano.config.floatX
-            ),
-            name='b',
-            borrow=True
-        )
+        if b is None:
+            # initialize the biases b as a vector of n_out 0s
+            self.b = theano.shared(
+                value=np.zeros(
+                    (n_out,),
+                    dtype=theano.config.floatX
+                ),
+                name='b',
+                borrow=True
+            )
+        else:
+            self.b = b
 
         # symbolic expression for computing the matrix of class-membership
         # probabilities
@@ -310,7 +319,7 @@ def dropout_from_layer(rng, layer, p):
 
     # The cast is important because
     # int * float32 = float64 which pulls things off the gpu
-    output = layer * T.cast(mask, theano.config.floatX)
+    output = layer * tensor.cast(mask, theano.config.floatX)
 
     return output
 
@@ -394,9 +403,11 @@ def evaluate_lenet5(initial_learning_rate=0.08,
                     pool_size = (2, 2),
                     n_convpool_layers = 1,
                     n_hidden_layers = 1,
-                    n_hidden_units = 100,
+                    hidden_layer_sizes = [100, 100],
                     convpool_layer_activation=tensor.tanh,
                     hidden_layer_activation=relu,
+                    dropout=True,
+                    dropout_rates = [ 0.2, 0.5, 0.5 ],
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -516,29 +527,64 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     # or (500, 50 * 4 * 4) = (500, 800) with the default values.
     # construct a fully-connected sigmoidal layer
     hidden_layers = []
+    hidden_layers_with_dropout = []
+    hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
-    #print conv_pool_layers[-1].output.flatten(2).eval()
-    hidden_layers.append(HiddenLayer(
-        rng,
-        input=conv_pool_layers[-1].output.flatten(2),
-        n_in=nkerns[n_convpool_layers-1] * input_size[0] * input_size[1],
-        n_out=n_hidden_units,
-        activation=hidden_layer_activation
-    ))
+    next_layer_input = conv_pool_layers[-1].output.flatten(2)
+    next_dropout_layer_input = dropout_from_layer(rng, conv_pool_layers[-1].output.flatten(2), p=dropout_rates[0])
 
-    for layer_num in range(1, n_hidden_layers):
-        hidden_layers.append(HiddenLayer(
-            rng,
-            input=hidden_layers[layer_num-1].output,
-            n_in=n_hidden_units,
-            n_out=n_hidden_units,
+    layer_counter = 0
+
+    for n_in, n_out in hidden_layer_weight_matrix_sizes[:-1]:
+        if layer_counter == 0:
+            n_in = nkerns[n_convpool_layers-1] * input_size[0] * input_size[1],
+        next_dropout_layer = HiddenLayerWithDropout(
+            rng=rng,
+            input=next_dropout_layer_input,
+            n_in=n_in, n_out=n_out,
+            dropout_rate=dropout_rates[layer_counter + 1],
             activation=hidden_layer_activation
-        ))
+        )
 
-    # classify the values of the fully-connected sigmoidal layer
-    output_layer = LogisticRegression(input=hidden_layers[-1].output, n_in=n_hidden_units, n_out=8)
+        hidden_layers_with_dropout.append(next_dropout_layer)
+        next_dropout_layer_input = next_dropout_layer.output
 
-    # the cost we minimize during training is the NLL of the model
+        # Reuse the paramters from the dropout layer here, in a different
+        # path through the graph.
+        next_layer = HiddenLayer(
+            rng=rng,
+            input=next_layer_input,
+            # scale the weight matrix W with (1-p)
+            W=next_dropout_layer.W * (1 - dropout_rates[layer_counter]),
+            b=next_dropout_layer.b,
+            n_in=n_in, n_out=n_out,
+            activation=hidden_layer_activation
+        )
+
+        hidden_layers.append(next_layer)
+        next_layer_input = next_layer.output
+
+        layer_counter += 1
+
+    # Set up the output layer
+    n_in, n_out = hidden_layer_weight_matrix_sizes[-1]
+    dropout_output_layer = LogisticRegression(
+        input=next_dropout_layer_input,
+        n_in=n_in, n_out=8
+    )
+
+    # Again, reuse paramters in the dropout output.
+    output_layer = LogisticRegression(
+        input=next_layer_input,
+        # scale the weight matrix W with (1-p)
+        W=dropout_output_layer.W * (1 - dropout_rates[-1]),
+        b=dropout_output_layer.b,
+        n_in=n_in, n_out=8
+    )
+
+    # Use the negative log likelihood of the logistic regression layer as
+    # the objective.
+    dropout_cost = dropout_output_layer.negative_log_likelihood(y)
     cost = output_layer.negative_log_likelihood(y)
 
     # create a function to give predictions
@@ -594,7 +640,11 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     params = reduce(operator.add, params) # flatten the array
 
     # create a list of gradients for all model parameters
-    grads = tensor.grad(cost, params)
+    if dropout is True:
+        grads = tensor.grad(dropout_cost, params)
+    else:
+        grads = tensor.grad(cost, params)
+
 
     # train_model is a function that updates the model parameters by
     # SGD Since this model has many parameters, it would be tedious to
@@ -606,6 +656,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
         for param_i, grad_i in zip(params, grads)
     ]
 
+    output = dropout_cost if dropout else cost
     train_model = theano.function(
         [index],
         cost,
@@ -738,6 +789,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 if __name__ == '__main__':
+
     labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
     #labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
