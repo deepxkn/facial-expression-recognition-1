@@ -70,3 +70,5 @@ expt-grid.pkl
 jobs/
 output/
 trace.csv
+chooser.GPEIOptChooser.pkl
+chooser.GPEIOptChooser_hyperparameters.txt
