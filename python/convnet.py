@@ -432,24 +432,6 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     # a relative improvement of this much is
                                    # considered significant
     """
-
-    print initial_learning_rate
-    print learning_rate_decay
-    print n_epochs
-    print patience
-    print patience_increase
-    print improvement_threshold
-    print nkerns
-    print batch_size
-    print filter_size
-    print pool_size
-    print n_convpool_layers
-    print n_hidden_layers
-    print n_hidden_units
-    print convpool_layer_activation
-    print hidden_layer_activation
-
-
     # determine the activation functions
     if convpool_layer_activation=='tanh':
         convpool_layer_activation=tensor.tanh
