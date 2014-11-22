@@ -169,6 +169,17 @@ class HiddenLayer(object):
         # parameters of the model
         self.params = [self.W, self.b]
 
+class HiddenLayerWithDropout(HiddenLayer):
+    def __init__(self, rng, input, n_in, n_out,
+        activation, dropout_rate, W=None, b=None):
+
+        super(HiddenLayerWithDropout, self).__init__(
+            rng=rng, input=input, n_in=n_in, n_out=n_out, W=W, b=b,
+            activation=activation
+        )
+
+        self.output = dropout_from_layer(rng, self.output, p=dropout_rate)
+
 class LogisticRegression(object):
     """Multi-class Logistic Regression Class
 
@@ -289,6 +300,19 @@ class LogisticRegression(object):
         else:
             raise NotImplementedError()
 
+def dropout_from_layer(rng, layer, p):
+    """p is the probablity of dropping a unit
+    """
+    srng = theano.tensor.shared_randomstreams.RandomStreams(rng.randint(999999))
+
+    # 1 - p is the probability of dropping
+    mask = srng.binomial(n=1, p=1-p, size=layer.shape)
+
+    # The cast is important because
+    # int * float32 = float64 which pulls things off the gpu
+    output = layer * T.cast(mask, theano.config.floatX)
+
+    return output
 
 def prepare_data(training, validation, test=None):
     ''' Prepares the dataset to feed into the model
@@ -356,30 +380,30 @@ def prepare_data(training, validation, test=None):
     return rval
 
 def relu(x):
-    theano.tensor.switch(x<0, 0, x)
+    return theano.tensor.switch(x<0, 0, x)
 
-def evaluate_lenet5(learning_rate=0.05,
+def evaluate_lenet5(initial_learning_rate=0.08,
                     learning_rate_decay=0.998,
                     n_epochs=100,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
-                    nkerns=[20, 50, 100],
+                    nkerns=[30, 50],
                     batch_size=100,
-                    filter_size = (5, 5),
+                    filter_size = (3, 3),
                     pool_size = (2, 2),
                     n_convpool_layers = 1,
                     n_hidden_layers = 1,
                     n_hidden_units = 100,
                     convpool_layer_activation=tensor.tanh,
-                    hidden_layer_activation=tensor.tanh,
+                    hidden_layer_activation=relu,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
                     image_dim=32):
     """
-    :type learning_rate: float
-    :param learning_rate: learning rate used (factor for the stochastic
+    :type initial learning_rate: float
+    :param initial learning_rate: learning rate used (factor for the stochastic
                           gradient)
 
     :type n_epochs: int
@@ -395,9 +419,18 @@ def evaluate_lenet5(learning_rate=0.05,
 
     :type validation_data: as above
 
-
     :type nkerns: list of ints
     :param nkerns: number of kernels on each layer
+
+    # early-stopping parameters
+    patience
+    # look as this many examples regardless
+    patience_increase
+    # wait this much longer when a new best is
+                           # found
+    improvement_threshold
+    # a relative improvement of this much is
+                                   # considered significant
     """
     if training_data is None or validation_data is None:
         print "No dataset given."
@@ -428,9 +461,11 @@ def evaluate_lenet5(learning_rate=0.05,
     # allocate symbolic variables for the data
     index = tensor.lscalar()  # index to a [mini]batch
 
-    # start-snippet-1
     x = tensor.matrix('x')   # data presented as rasterized images
     y = tensor.ivector('y')  # labels presented as 1D vector of [int] labels
+
+    learning_rate = theano.shared(np.asarray(initial_learning_rate,
+        dtype=theano.config.floatX))
 
     ######################
     # BUILD ACTUAL MODEL #
@@ -580,23 +615,25 @@ def evaluate_lenet5(learning_rate=0.05,
             y: train_set_y[index * batch_size : (index + 1) * batch_size]
         }
     )
-    # end-snippet-1
+
+    # function for decaying the learning rate after each epoch
+    decay_learning_rate = theano.function(
+        inputs=[],
+        updates={
+            learning_rate: learning_rate * learning_rate_decay
+        }
+    )
 
     ###############
     # TRAIN MODEL #
     ###############
     print '... training'
-    # early-stopping parameters
-    patience = 10000  # look as this many examples regardless
-    patience_increase = 2  # wait this much longer when a new best is
-                           # found
-    improvement_threshold = 0.995  # a relative improvement of this much is
-                                   # considered significant
+
     validation_frequency = min(n_train_batches, patience / 2)
-                                  # go through this many
-                                  # minibatches before checking the network
-                                  # on the validation set; in this case we
-                                  # check every epoch
+    # go through this many
+    # minibatches before checking the network
+    # on the validation set; in this case we
+    # check every epoch
 
     best_validation_loss = np.inf
     best_iter = 0
@@ -632,8 +669,9 @@ def evaluate_lenet5(learning_rate=0.05,
                 ]
                 this_validation_loss = np.mean(validation_losses)
 
-                print('epoch %i, minibatch %i/%i, training error %f %%, validation error %f %%' %
+                print('epoch %i, minibatch %i/%i, learning_rate %f, training error %f %%, validation error %f %%' %
                       (epoch, minibatch_index + 1, n_train_batches,
+                       learning_rate.get_value(borrow=True),
                        this_training_loss * 100,
                        this_validation_loss * 100.))
 
@@ -652,6 +690,8 @@ def evaluate_lenet5(learning_rate=0.05,
             if patience <= iter:
                 done_looping = True
                 break
+
+        decay_learning_rate()
 
     if test_data is not None:
         test_pred = [
@@ -719,7 +759,7 @@ if __name__ == '__main__':
 
     # dumb validation set partition for now
     util.shuffle_in_unison(labeled_training, labeled_training_labels)
-    valid_split = labeled_training.shape[0] // 5
+    valid_split = labeled_training.shape[0] // 12
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
