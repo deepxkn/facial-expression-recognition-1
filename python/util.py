@@ -293,6 +293,6 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                     ] = this_img * c
         return out_array
 
-if __name__ == '__main__':
-    data = load_labeled_training()
-    render_matrix(data[0][:100, : , :])
+#if __name__ == '__main__':
+    #data = load_labeled_training()
+    #render_matrix(data[0][:100, : , :])

@@ -64,3 +64,11 @@ docs/_build/
 # Intermediate documents:
 *.dvi
 *-converted-to.*
+
+# Spearmint experiment files
+expt-grid.pkl
+jobs/
+output/
+trace.csv
+chooser.GPEIOptChooser.pkl
+chooser.GPEIOptChooser_hyperparameters.txt
