@@ -1,9 +1,9 @@
-from zca import ZCA
+#from zca import ZCA
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 
 
 """
