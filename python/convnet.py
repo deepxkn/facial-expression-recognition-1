@@ -169,6 +169,17 @@ class HiddenLayer(object):
         # parameters of the model
         self.params = [self.W, self.b]
 
+class HiddenLayerWithDropout(HiddenLayer):
+    def __init__(self, rng, input, n_in, n_out,
+        activation, dropout_rate, W=None, b=None):
+
+        super(HiddenLayerWithDropout, self).__init__(
+            rng=rng, input=input, n_in=n_in, n_out=n_out, W=W, b=b,
+            activation=activation
+        )
+
+        self.output = dropout_from_layer(rng, self.output, p=dropout_rate)
+
 class LogisticRegression(object):
     """Multi-class Logistic Regression Class
 
@@ -289,6 +300,19 @@ class LogisticRegression(object):
         else:
             raise NotImplementedError()
 
+def dropout_from_layer(rng, layer, p):
+    """p is the probablity of dropping a unit
+    """
+    srng = theano.tensor.shared_randomstreams.RandomStreams(rng.randint(999999))
+
+    # 1 - p is the probability of dropping
+    mask = srng.binomial(n=1, p=1-p, size=layer.shape)
+
+    # The cast is important because
+    # int * float32 = float64 which pulls things off the gpu
+    output = layer * T.cast(mask, theano.config.floatX)
+
+    return output
 
 def prepare_data(training, validation, test=None):
     ''' Prepares the dataset to feed into the model
@@ -360,7 +384,7 @@ def relu(x):
 
 def evaluate_lenet5(initial_learning_rate=0.08,
                     learning_rate_decay=0.998,
-                    n_epochs=10,
+                    n_epochs=100,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
@@ -372,7 +396,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
                     n_hidden_layers = 1,
                     n_hidden_units = 100,
                     convpool_layer_activation=tensor.tanh,
-                    hidden_layer_activation=tensor.tanh,
+                    hidden_layer_activation=relu,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
