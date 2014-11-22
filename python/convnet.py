@@ -364,7 +364,7 @@ def evaluate_lenet5(learning_rate=0.05,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
-                    nkerns=[20],
+                    nkerns=[20, 50, 100],
                     batch_size=100,
                     filter_size = (5, 5),
                     pool_size = (2, 2),
@@ -486,7 +486,7 @@ def evaluate_lenet5(learning_rate=0.05,
     hidden_layers.append(HiddenLayer(
         rng,
         input=conv_pool_layers[-1].output.flatten(2),
-        n_in=nkerns[-1] * input_size[0] * input_size[1],
+        n_in=nkerns[n_convpool_layers-1] * input_size[0] * input_size[1],
         n_out=n_hidden_units,
         activation=hidden_layer_activation
     ))
@@ -661,7 +661,10 @@ def evaluate_lenet5(learning_rate=0.05,
         test_pred = list(itertools.chain.from_iterable(test_pred))
         test_pred = list(itertools.chain.from_iterable(test_pred))
 
-    return best_validation_loss, test_pred
+        return best_validation_loss, test_pred
+
+    else:
+        return best_validation_loss, None
 
 ###############################################################################
 # DEBUGGING
@@ -716,14 +719,15 @@ if __name__ == '__main__':
 
     # dumb validation set partition for now
     util.shuffle_in_unison(labeled_training, labeled_training_labels)
-    valid_split = labeled_training.shape[0] // 50
+    valid_split = labeled_training.shape[0] // 5
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
     _, test_labels = evaluate_lenet5(
             training_data=(train_data, train_labels),
             validation_data=(valid_data, valid_labels),
-            test_data=test_images
+            test_data=test_images,
+            filter_size=(3, 3)
             )
 
     print test_labels
