@@ -378,22 +378,24 @@ class ConvNet(object):
     def __init__(self,
             rng,
             input,
-            use_bias=True,
-            kernel_position_product=6000,
-            batch_size=100,
-            filter_size = (3, 3),
-            pool_size = (2, 2),
-            n_convpool_layers = 1,
-            n_hidden_layers = 2,
-            dropout=True,
-            dropout_rates=[0.2, 0.5, 0.5],
-            n_hidden_units = 100,
-            size_input_to_log_layer=500,
-            convpool_layer_activation='tanh',
-            hidden_layer_activation='relu',
-            squared_filter_length_limit = 15.0,
-            image_dim=32,
-            n_output_dim=8):
+            use_bias,
+            kernel_position_product,
+            batch_size,
+            filter_size,
+            pool_size,
+            n_convpool_layers,
+            n_hidden_layers,
+            dropout,
+            input_dropout,
+            convpool_dropout,
+            hidden_dropout,
+            n_hidden_units,
+            convpool_layer_activation,
+            hidden_layer_activation,
+            image_dim,
+            n_output_dim,
+            squared_filter_length_limit=15
+            ):
 
         # determine the activation functions
         if convpool_layer_activation=='tanh':
@@ -411,15 +413,13 @@ class ConvNet(object):
         # Set up all the convolutional pooling layers
         input_size = (image_dim, image_dim)
 
-        # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
-        # to a 4D tensor, compatible with our ConvPoolLayer
-
         self.conv_pool_layers = []
         if dropout:
             self.dropout_conv_pool_layers = []
-
-            poolsize=pool_size,
-            activation=convpool_layer_activation
+            # construct the dropout rate list
+            dropout_rates = [input_dropout]
+            dropout_rates.extend([convpool_dropout for i in range(n_convpool_layers)])
+            dropout_rates.extend([hidden_dropout for i in range(n_hidden_layers)])
 
         if kernel_position_product < 10000:
             print 'Too few kernels in the input layer.'
@@ -427,9 +427,8 @@ class ConvNet(object):
 
         # the product of the number of features and the number of pixel positions should be constant
         pixel_positions = (input_size[0] - filter_size[0] + 1)**2
-        nkerns_current = kernel_position_product // pixel_positions
+        nkerns_current = int(kernel_position_product / pixel_positions)
 
-        # Construct the convolutional pooling layers
         for layer_num in range(n_convpool_layers):
 
             if layer_num == 0: # first convpool layer
@@ -437,7 +436,8 @@ class ConvNet(object):
                 image_shape=(batch_size, 1, input_size[0], input_size[1])
                 filter_shape=(nkerns_current, 1, filter_size[0], filter_size[1])
                 if dropout:
-                    next_dropout_layer_input = _dropout_from_layer(rng, next_layer_input, p=dropout_rates[layer_num])
+                    # dropout the input
+                    next_dropout_layer_input = _dropout_from_layer(rng, next_layer_input, p=dropout_rates[0])
 
             else: # deeper convpool layer
                 next_layer_input = self.conv_pool_layers[layer_num-1].output
@@ -447,26 +447,28 @@ class ConvNet(object):
                     next_dropout_layer_input = self.dropout_conv_pool_layers[layer_num-1].output
 
             if dropout:
-                self.dropout_conv_pool_layers.append(DropoutConvPoolLayer(
-                    rng=rng,
-                    input=next_dropout_layer_input,
-                    activation=convpool_layer_activation,
-                    image_shape=image_shape,
-                    filter_shape=filter_shape,
-                    poolsize=pool_size,
-                    use_bias=use_bias,
-                    dropout_rate=dropout_rates[layer_counter + 1]
-                    )
-                )
+               self.dropout_conv_pool_layers.append(DropoutConvPoolLayer(
+                   rng=rng,
+                   input=next_dropout_layer_input,
+                   activation=convpool_layer_activation,
+                   image_shape=image_shape,
+                   filter_shape=filter_shape,
+                   poolsize=pool_size,
+                   use_bias=use_bias,
+                   dropout_rate=dropout_rates[layer_num+1]
+                   )
+               )
 
             self.conv_pool_layers.append(ConvPoolLayer(
-                rng,
+                rng=rng,
                 input=next_layer_input,
                 image_shape=image_shape,
                 filter_shape=filter_shape,
                 poolsize=pool_size,
                 use_bias=use_bias,
-                activation=convpool_layer_activation
+                activation=convpool_layer_activation,
+                W=self.dropout_conv_pool_layers[layer_num].W * (1 - dropout_rates[layer_num]) if dropout else None,
+                b=self.dropout_conv_pool_layers[layer_num].b if dropout else None
                 )
             )
 
@@ -475,14 +477,14 @@ class ConvNet(object):
 
             pixel_positions = (input_size[0] - filter_size[0] + 1)**2
             nkerns_previous = nkerns_current
-            nkerns_current = kernel_position_product // pixel_positions
+            nkerns_current = int(kernel_position_product / pixel_positions)
 
         nkerns = nkerns_previous
 
         # Set up all the hidden layers
         #TODO: allow for different number of hidden units per layer
         hidden_layer_sizes = [(i+1) * n_hidden_units for i in range(n_hidden_layers)]
-        hidden_layer_sizes.append(size_input_to_log_layer)
+        hidden_layer_sizes.append(n_output_dim)
         hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
         self.hidden_layers = []
@@ -490,9 +492,8 @@ class ConvNet(object):
 
         next_layer_input = self.conv_pool_layers[-1].output.flatten(2)
         if dropout is True:
-            next_dropout_layer_input = dropout_from_layer(rng, self.dropout_conv_pool_layers[-1].output.flatten(2), p=dropout_rates[0])
+            next_dropout_layer_input = self.dropout_conv_pool_layers[-1].output.flatten(2)
 
-        # dropout the input
         layer_counter = 0
         for n_in, n_out in hidden_layer_weight_matrix_sizes:
             if layer_counter == 0: # first hidden layer
@@ -503,23 +504,21 @@ class ConvNet(object):
                         input=next_dropout_layer_input,
                         activation=hidden_layer_activation,
                         n_in=n_in, n_out=n_out, use_bias=use_bias,
-                        dropout_rate=dropout_rates[layer_counter + 1])
+                        dropout_rate=dropout_rates[layer_counter+n_convpool_layers+1])
                 self.dropout_hidden_layers.append(next_dropout_layer)
                 next_dropout_layer_input = next_dropout_layer.output
 
-            # Reuse the parameters from the dropout layer here, in a different
-            # path through the graph.
             next_layer = HiddenLayer(rng=rng,
                     input=next_layer_input,
                     activation=hidden_layer_activation,
                     # scale the weight matrix W with (1-p)
-                    W=next_dropout_layer.W * (1 - dropout_rates[layer_counter]) if dropout else None,
+                    W=next_dropout_layer.W * (1 - dropout_rates[layer_counter+n_convpool_layers]) if dropout else None,
                     b=next_dropout_layer.b if dropout else None,
                     n_in=n_in, n_out=n_out,
                     use_bias=use_bias)
             self.hidden_layers.append(next_layer)
             next_layer_input = next_layer.output
-            #first_layer = False
+
             layer_counter += 1
 
         # Set up the output layer
@@ -528,12 +527,11 @@ class ConvNet(object):
                     input=next_dropout_layer_input,
                     n_in=n_out, n_out=n_output_dim)
 
-        # Again, reuse parameters in the dropout output.
         self.output_layer = LogisticRegression(
             input=next_layer_input,
             # scale the weight matrix W with (1-p)
-            W=dropout_output_layer.W * (1 - dropout_rates[-1]) if dropout else None,
-            b=dropout_output_layer.b if dropout else None,
+            W=self.dropout_output_layer.W * (1 - dropout_rates[-1]) if dropout else None,
+            b=self.dropout_output_layer.b if dropout else None,
             n_in=n_out, n_out=n_output_dim)
 
         # Use the negative log likelihood of the logistic regression layer as
@@ -548,32 +546,32 @@ class ConvNet(object):
 
         # Grab all the layers and parameters together.
         if dropout:
-            self.layers = self.dropout_conv_pool_layers.extend(self.dropout_hidden_layers.append(self.dropout_output_layer))
+            self.dropout_layers = list(itertools.chain(self.dropout_conv_pool_layers, self.dropout_hidden_layers, [self.dropout_output_layer]))
             self.params = [ param for layer in self.dropout_layers for param in layer.params ]
+            assert len(self.dropout_layers) == n_convpool_layers + n_hidden_layers + 1
         else:
             self.layers = list(itertools.chain(self.conv_pool_layers, self.hidden_layers, [self.output_layer]))
             self.params = [ param for layer in self.layers for param in layer.params ]
-        assert len(self.layers) == n_convpool_layers + n_hidden_layers + 1
+            assert len(self.layers) == n_convpool_layers + n_hidden_layers + 1
 
 def evaluate_convnet(
-        kernel_position_product=60000,
+        kernel_position_product=20000,
         filter_size = (3, 3),
         pool_size = (2, 2),
-        n_convpool_layers = 2,
-        n_hidden_layers = 3,
+        n_convpool_layers = 1,
+        n_hidden_layers = 1,
         n_hidden_units = 100,
-        size_input_to_log_layer=500,
         convpool_layer_activation='tanh',
         hidden_layer_activation='relu',
         image_dim=32,
         n_output_dim=8,
-        initial_learning_rate=0.08,
-        learning_rate_decay=0.998,
-        n_epochs=100,
-        patience=10000,
+        initial_learning_rate=0.8,
+        learning_rate_decay=0.98,
+        n_epochs=500,
+        patience=5000,
         patience_increase=2,
         improvement_threshold=0.995,
-        batch_size=50,
+        batch_size=100,
         training_data=None,
         validation_data=None,
         test_data=None,
@@ -582,10 +580,27 @@ def evaluate_convnet(
                     "end": 0.99,
                     "interval": 500},
         dropout=False,
-        dropout_rates = [0.2, 0.5, 0.5],
+        input_dropout=0.2,
+        convpool_dropout=0.0,
+        hidden_dropout=0.5,
         use_bias=True,
         random_seed=1234
     ):
+
+    #print 'Kernel position product: ', kernel_position_product
+    #print 'Filter size: ', filter_size
+    #print 'Pool size: ', pool_size
+    #print 'Number of convolutional pooling layers: ', n_convpool_layers
+    #print 'Number of hidden layers: ', n_hidden_layers
+    #print 'Number of hidden units: ', n_hidden_units
+    #print 'ConvPool layer activation: ', convpool_layer_activation
+    #print 'Hidden layer activation: ', hidden_layer_activation
+    #print 'Initial learning rate: ', initial_learning_rate
+    #print 'Learning rate decay: ', learning_rate_decay
+    #print 'Batch size: ', batch_size
+    #print 'Momentum parameters: ', mom_params
+    #print 'Dropout enabled?: ', dropout
+    #print 'Dropout rates: ', 'input', input_dropout, 'convpool dropout', convpool_dropout, 'hidden dropout', hidden_dropout
 
     # extract the params for momentum
     mom_start = mom_params["start"]
@@ -644,9 +659,10 @@ def evaluate_convnet(
                        n_convpool_layers=n_convpool_layers,
                        n_hidden_layers=n_hidden_layers,
                        dropout=dropout,
-                       dropout_rates=dropout_rates,
+                       input_dropout=input_dropout,
+                       convpool_dropout=convpool_dropout,
+                       hidden_dropout=hidden_dropout,
                        n_hidden_units=n_hidden_units,
-                       size_input_to_log_layer=size_input_to_log_layer,
                        convpool_layer_activation=convpool_layer_activation,
                        hidden_layer_activation=hidden_layer_activation,
                        image_dim=image_dim,
@@ -747,6 +763,7 @@ def evaluate_convnet(
             #scale = tensor.clip(tensor.sqrt(squared_filter_length_limit / squared_norms), 0., 1.)
             #updates[param] = stepped_param * scale
 
+            # max norm regularisation
             # constrain the norms of the COLUMNs of the weight, according to
             # https://github.com/BVLC/caffe/issues/109
             col_norms = tensor.sqrt(tensor.sum(tensor.sqr(stepped_param), axis=0))
@@ -785,7 +802,6 @@ def evaluate_convnet(
 
     validation_frequency = min(n_train_batches, patience / 2)
 
-    best_params = None
     best_validation_loss = np.inf
     best_iter = 0
     test_score = 0.
@@ -841,6 +857,15 @@ def evaluate_convnet(
                         best_validation_loss = this_validation_loss
                         best_iter = iter
 
+                        # test it on the test set
+                        if test_data is not None:
+                            test_pred = [
+                                test_predictions(i) for i
+                                in xrange(n_test_batches)
+                            ]
+                            test_pred = list(itertools.chain.from_iterable(test_pred))
+                            print 'Wrote test predictions to file.\n'
+
                 if patience <= iter:
                     done_looping = True
                     break
@@ -849,14 +874,6 @@ def evaluate_convnet(
 
         except KeyboardInterrupt:
             break
-
-    if test_data is not None:
-        test_pred = [
-            test_predictions(i) for i
-            in xrange(n_test_batches)
-        ]
-        test_pred = list(itertools.chain.from_iterable(test_pred))
-        test_pred = list(itertools.chain.from_iterable(test_pred))
 
     end_time = time.clock()
     print('Optimization complete.')
