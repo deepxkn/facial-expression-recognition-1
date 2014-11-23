@@ -23,17 +23,17 @@ variable {
     name: "filter size"
     type: INT
     size: 1
-    min: 3
+    min: 2
     max: 5
 }
 
 
 variable {
-    name: "number of kernels"
-    type: ENUM
+    name: "product of number of kernels and number of pixel positions"
+    type: INT
     size: 1
-    options: "20,30,40"
-    options: "30,50,100"
+    min: 10000
+    max: 60000
 }
 
 variable {
@@ -48,7 +48,7 @@ variable {
     name: "learning rate"
     type: FLOAT
     size: 1
-    min: 0.001
+    min: 0.005
     max: 0.1
 }
 
@@ -71,7 +71,6 @@ variable {
     name: "hidden layer activation function"
     type: ENUM
     size: 1
-    options: "tanh"
     options: "relu"
 }
 
@@ -88,7 +87,7 @@ variable {
     type: INT
     size: 1
     min: 1
-    max: 3
+    max: 2
 }
 
 variable {
@@ -96,5 +95,53 @@ variable {
     type: INT
     size: 1
     min: 30
-    max: 500
+    max: 2000
+}
+
+variable {
+    name: "input dropout probability"
+    type: FLOAT
+    size: 1
+    min: 0
+    max: 1
+}
+
+variable {
+    name: "hidden layer dropout probability"
+    type: FLOAT
+    size: 1
+    min: 0
+    max: 1
+}
+
+variable {
+    name: "convpool layer dropout probability"
+    type: FLOAT
+    size: 1
+    min: 0
+    max: 1
+}
+
+variable {
+    name: "ZCA whitening"
+    type: ENUM
+    size: 1
+    options: "True"
+    options: "False"
+}
+
+variable {
+    name: "global contrast normalisation"
+    type: ENUM
+    size: 1
+    options: "True"
+    options: "False"
+}
+
+variable {
+    name: "standardisation"
+    type: ENUM
+    size: 1
+    options: "True"
+    options: "False"
 }
