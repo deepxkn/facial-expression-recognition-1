@@ -481,7 +481,7 @@ class ConvNet(object):
 
         # Set up all the hidden layers
         #TODO: allow for different number of hidden units per layer
-        hidden_layer_sizes = [n_hidden_units for i in range(n_hidden_layers)]
+        hidden_layer_sizes = [(i+1) * n_hidden_units for i in range(n_hidden_layers)]
         hidden_layer_sizes.append(size_input_to_log_layer)
         hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
