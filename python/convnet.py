@@ -8,26 +8,24 @@ import itertools
 import numpy as np
 import operator
 from PIL import Image
+from collections import OrderedDict
 
 import theano
 import theano.tensor as tensor
+from theano.ifelse import ifelse
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv
 #theano.config.exception_verbosity='high'
-theano.config.optmizer='fast_compile'
+#theano.config.optmizer='fast_compile'
 
-import classifiers
-# set the package name to allow relative imports
-if __name__ == "__main__" and __package__ is None:
-    __package__ = "classifiers.convnet"
-from .. import util
+import util
 
 
 class ConvPoolLayer(object):
     """Pooling layer of a convolutional network """
 
     def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2),
-            activation=tensor.tanh):
+            activation=tensor.tanh, use_bias=True, W=None, b=None):
         """
         Allocate a ConvPoolLayer with shared variable internal parameters.
 
@@ -51,6 +49,7 @@ class ConvPoolLayer(object):
 
         assert image_shape[1] == filter_shape[1]
         self.input = input
+        self.activation = activation
 
         # there are "num input feature maps * filter height * filter width"
         # inputs to each hidden unit
@@ -64,17 +63,21 @@ class ConvPoolLayer(object):
 
         # initialize weights with random weights
         W_bound = np.sqrt(6. / (fan_in + fan_out))
-        self.W = theano.shared(
-            np.asarray(
-                rng.uniform(low=-W_bound, high=W_bound, size=filter_shape),
-                dtype=theano.config.floatX
-            ),
-            borrow=True
-        )
+        if W is None:
+            W = theano.shared(
+                np.asarray(
+                    rng.uniform(low=-W_bound, high=W_bound, size=filter_shape),
+                    dtype=theano.config.floatX
+                ),
+                name='W', borrow=True
+            )
 
-        # the bias is a 1D tensor -- one bias per output feature map
-        b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
-        self.b = theano.shared(value=b_values, borrow=True)
+        if b is None:
+            b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
+            b = theano.shared(value=b_values, name='b', borrow=True)
+
+        self.W = W
+        self.b = b
 
         # convolve input feature maps with filters
         conv_out = conv.conv2d(
@@ -95,54 +98,34 @@ class ConvPoolLayer(object):
         # reshape it to a tensor of shape (1, n_filters, 1, 1). Each bias will
         # thus be broadcasted across mini-batches and feature map
         # width & height
-        self.output = activation(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+        self.output = self.activation(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
 
         # store parameters of this layer
-        self.params = [self.W, self.b]
+        if use_bias:
+            self.params = [self.W, self.b]
+        else:
+            self.params = [self.W]
 
+class DropoutConvPoolLayer(ConvPoolLayer):
+    def __init__(self, rng, input, filter_shape, image_shape, dropout_rate, poolsize=(2, 2),
+                 activation=tensor.tanh, use_bias=True, W=None, b=None):
+
+        super(DropoutConvPoolLayer, self).__init__(
+                rng=rng, input=input, filter_shape=filter_shape, image_shape=image_shape,
+                poolsize=poolsize, W=W, b=b,
+                activation=activation, use_bias=use_bias)
+
+        self.output = _dropout_from_layer(rng, self.output, p=dropout_rate)
 
 class HiddenLayer(object):
-    def __init__(self, rng, input, n_in, n_out, W=None, b=None,
-                 activation=tensor.tanh):
-        """
-        Typical hidden layer of a MLP: units are fully-connected and have
-        sigmoidal activation function. Weight matrix W is of shape (n_in,n_out)
-        and the bias vector b is of shape (n_out,).
+    def __init__(self, rng, input, n_in, n_out,
+                 activation=tensor.tanh,
+                 W=None, b=None,
+                 use_bias=True):
 
-        NOTE : The nonlinearity used here is tanh
-
-        Hidden unit activation is given by: tanh(dot(input,W) + b)
-
-        :type rng: numpy.random.RandomState
-        :param rng: a random number generator used to initialize weights
-
-        :type input: theano.tensor.dmatrix
-        :param input: a symbolic tensor of shape (n_examples, n_in)
-
-        :type n_in: int
-        :param n_in: dimensionality of input
-
-        :type n_out: int
-        :param n_out: number of hidden units
-
-        :type activation: theano.Op or function
-        :param activation: Non linearity to be applied in the hidden
-                           layer
-        """
         self.input = input
+        self.activation = activation
 
-        # `W` is initialized with `W_values` which is uniformely sampled
-        # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
-        # for tanh activation function
-        # the output of uniform if converted using asarray to dtype
-        # theano.config.floatX so that the code is runable on GPU
-        # Note : optimal initialization of weights is dependent on the
-        #        activation function used (among other things).
-        #        For example, results presented in [Xavier10] suggest that you
-        #        should use 4 times larger initial weights for sigmoid
-        #        compared to tanh
-        #        We have no info for other function, so we use the same as
-        #        tanh.
         if W is None:
             W_values = np.asarray(
                 rng.uniform(
@@ -164,25 +147,39 @@ class HiddenLayer(object):
         self.W = W
         self.b = b
 
-        lin_output = tensor.dot(input, self.W) + self.b
-        self.output = (
-            lin_output if activation is None
-            else activation(lin_output)
-        )
+        if use_bias:
+            lin_output = tensor.dot(input, self.W) + self.b
+        else:
+            lin_output = tensor.dot(input, self.W)
+
+        self.output = (lin_output if activation is None else activation(lin_output))
 
         # parameters of the model
-        self.params = [self.W, self.b]
+        if use_bias:
+            self.params = [self.W, self.b]
+        else:
+            self.params = [self.W]
 
-class HiddenLayerWithDropout(HiddenLayer):
+class DropoutHiddenLayer(HiddenLayer):
     def __init__(self, rng, input, n_in, n_out,
-        activation, dropout_rate, W=None, b=None):
+                 dropout_rate, use_bias=True, activation=tensor.tanh,  W=None, b=None):
+        super(DropoutHiddenLayer, self).__init__(
+                rng=rng, input=input, n_in=n_in, n_out=n_out, W=W, b=b,
+                activation=activation, use_bias=use_bias)
 
-        super(HiddenLayerWithDropout, self).__init__(
-            rng=rng, input=input, n_in=n_in, n_out=n_out, W=W, b=b,
-            activation=activation
-        )
+        self.output = _dropout_from_layer(rng, self.output, p=dropout_rate)
 
-        self.output = dropout_from_layer(rng, self.output, p=dropout_rate)
+def _dropout_from_layer(rng, layer, p):
+    """p is the probablity of dropping a unit
+    """
+    srng = theano.tensor.shared_randomstreams.RandomStreams(
+            rng.randint(999999))
+    # p=1-p because 1's indicate keep and p is prob of dropping
+    mask = srng.binomial(n=1, p=1-p, size=layer.shape)
+    # The cast is important because
+    # int * float32 = float64 which pulls things off the gpu
+    output = layer * tensor.cast(mask, theano.config.floatX)
+    return output
 
 class LogisticRegression(object):
     """Multi-class Logistic Regression Class
@@ -309,20 +306,6 @@ class LogisticRegression(object):
         else:
             raise NotImplementedError()
 
-def dropout_from_layer(rng, layer, p):
-    """p is the probablity of dropping a unit
-    """
-    srng = theano.tensor.shared_randomstreams.RandomStreams(rng.randint(999999))
-
-    # 1 - p is the probability of dropping
-    mask = srng.binomial(n=1, p=1-p, size=layer.shape)
-
-    # The cast is important because
-    # int * float32 = float64 which pulls things off the gpu
-    output = layer * tensor.cast(mask, theano.config.floatX)
-
-    return output
-
 def prepare_data(training, validation, test=None):
     ''' Prepares the dataset to feed into the model
     '''
@@ -391,77 +374,227 @@ def prepare_data(training, validation, test=None):
 def relu(x):
     return theano.tensor.switch(x<0, 0, x)
 
-def evaluate_lenet5(initial_learning_rate=0.08,
-                    learning_rate_decay=0.998,
-                    n_epochs=100,
-                    patience=10000,
-                    patience_increase=2,
-                    improvement_threshold=0.995,
-                    nkerns=[30, 50],
-                    batch_size=100,
-                    filter_size = (3, 3),
-                    pool_size = (2, 2),
-                    n_convpool_layers = 1,
-                    n_hidden_layers = 1,
-##TODO hidden layer sizes
-                    dropout=True,
-                    dropout_rates = [ 0.2, 0.5, 0.5 ],
-                    n_hidden_units = 100,
-                    convpool_layer_activation='tanh',
-                    hidden_layer_activation='relu',
-                    training_data=None,
-                    validation_data=None,
-                    test_data=None,
-                    image_dim=32):
-    """
-    :type initial learning_rate: float
-    :param initial learning_rate: learning rate used (factor for the stochastic
-                          gradient)
+class ConvNet(object):
+    def __init__(self,
+            rng,
+            input,
+            use_bias=True,
+            kernel_position_product=6000,
+            batch_size=100,
+            filter_size = (3, 3),
+            pool_size = (2, 2),
+            n_convpool_layers = 1,
+            n_hidden_layers = 2,
+            dropout=True,
+            dropout_rates=[0.2, 0.5, 0.5],
+            n_hidden_units = 100,
+            size_input_to_log_layer=500,
+            convpool_layer_activation='tanh',
+            hidden_layer_activation='relu',
+            squared_filter_length_limit = 15.0,
+            image_dim=32,
+            n_output_dim=8):
 
-    :type n_epochs: int
-    :param n_epochs: maximal number of epochs to run the optimizer
+        # determine the activation functions
+        if convpool_layer_activation=='tanh':
+            convpool_layer_activation=tensor.tanh
+        else:
+            raise NotImplementedError
 
-    :type training_data: tuple of (np.ndarry, np.ndarry)
-    :param training_data: tuple of (input, target), where
-        input is an np.ndarray of D dimensions (a matrix)
-        whose rows correspond to an example. target is a
-        np.ndarray of 1 dimensions (vector) that has length equal to
-        the number of rows in the input. It should give the target
-        value to the example with the same index in the input.
+        if hidden_layer_activation=='tanh':
+            hidden_layer_activation=tensor.tanh
+        elif hidden_layer_activation=='relu':
+            hidden_layer_activation=relu
+        else:
+            raise NotImplementedError
 
-    :type validation_data: as above
+        # Set up all the convolutional pooling layers
+        input_size = (image_dim, image_dim)
 
-    :type nkerns: list of ints
-    :param nkerns: number of kernels on each layer
+        # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
+        # to a 4D tensor, compatible with our ConvPoolLayer
 
-    # early-stopping parameters
-    patience
-    # look as this many examples regardless
-    patience_increase
-    # wait this much longer when a new best is
-                           # found
-    improvement_threshold
-    # a relative improvement of this much is
-                                   # considered significant
-    """
-    # determine the activation functions
-    if convpool_layer_activation=='tanh':
-        convpool_layer_activation=tensor.tanh
-    else:
-        raise NotImplementedError
+        self.conv_pool_layers = []
+        if dropout:
+            self.dropout_conv_pool_layers = []
 
-    if hidden_layer_activation=='tanh':
-        hidden_layer_activation=tensor.tanh
-    elif hidden_layer_activation=='relu':
-        hidden_layer_activation=relu
-    else:
-        raise NotImplementedError
+            poolsize=pool_size,
+            activation=convpool_layer_activation
+
+        if kernel_position_product < 10000:
+            print 'Too few kernels in the input layer.'
+            raise Exception
+
+        # the product of the number of features and the number of pixel positions should be constant
+        pixel_positions = (input_size[0] - filter_size[0] + 1)**2
+        nkerns_current = kernel_position_product // pixel_positions
+
+        # Construct the convolutional pooling layers
+        for layer_num in range(n_convpool_layers):
+
+            if layer_num == 0: # first convpool layer
+                next_layer_input = input.reshape((batch_size, 1, input_size[0], input_size[1]))
+                image_shape=(batch_size, 1, input_size[0], input_size[1])
+                filter_shape=(nkerns_current, 1, filter_size[0], filter_size[1])
+                if dropout:
+                    next_dropout_layer_input = _dropout_from_layer(rng, next_layer_input, p=dropout_rates[layer_num])
+
+            else: # deeper convpool layer
+                next_layer_input = self.conv_pool_layers[layer_num-1].output
+                image_shape=(batch_size, nkerns_previous, input_size[0], input_size[1])
+                filter_shape=(nkerns_current, nkerns_previous, filter_size[0], filter_size[1])
+                if dropout:
+                    next_dropout_layer_input = self.dropout_conv_pool_layers[layer_num-1].output
+
+            if dropout:
+                self.dropout_conv_pool_layers.append(DropoutConvPoolLayer(
+                    rng=rng,
+                    input=next_dropout_layer_input,
+                    activation=convpool_layer_activation,
+                    image_shape=image_shape,
+                    filter_shape=filter_shape,
+                    poolsize=pool_size,
+                    use_bias=use_bias,
+                    dropout_rate=dropout_rates[layer_counter + 1]
+                    )
+                )
+
+            self.conv_pool_layers.append(ConvPoolLayer(
+                rng,
+                input=next_layer_input,
+                image_shape=image_shape,
+                filter_shape=filter_shape,
+                poolsize=pool_size,
+                use_bias=use_bias,
+                activation=convpool_layer_activation
+                )
+            )
+
+            input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
+                      (input_size[1] - filter_size[1] + 1) / pool_size[1])
+
+            pixel_positions = (input_size[0] - filter_size[0] + 1)**2
+            nkerns_previous = nkerns_current
+            nkerns_current = kernel_position_product // pixel_positions
+
+        nkerns = nkerns_previous
+
+        # Set up all the hidden layers
+        #TODO: allow for different number of hidden units per layer
+        hidden_layer_sizes = [n_hidden_units for i in range(n_hidden_layers)]
+        hidden_layer_sizes.append(size_input_to_log_layer)
+        hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
+
+        self.hidden_layers = []
+        self.dropout_hidden_layers = []
+
+        next_layer_input = self.conv_pool_layers[-1].output.flatten(2)
+        if dropout is True:
+            next_dropout_layer_input = dropout_from_layer(rng, self.dropout_conv_pool_layers[-1].output.flatten(2), p=dropout_rates[0])
+
+        # dropout the input
+        layer_counter = 0
+        for n_in, n_out in hidden_layer_weight_matrix_sizes:
+            if layer_counter == 0: # first hidden layer
+                n_in = nkerns * input_size[0] * input_size[1]
+            if dropout:
+                next_dropout_layer = DropoutHiddenLayer(
+                        rng=rng,
+                        input=next_dropout_layer_input,
+                        activation=hidden_layer_activation,
+                        n_in=n_in, n_out=n_out, use_bias=use_bias,
+                        dropout_rate=dropout_rates[layer_counter + 1])
+                self.dropout_hidden_layers.append(next_dropout_layer)
+                next_dropout_layer_input = next_dropout_layer.output
+
+            # Reuse the paramters from the dropout layer here, in a different
+            # path through the graph.
+            next_layer = HiddenLayer(rng=rng,
+                    input=next_layer_input,
+                    activation=hidden_layer_activation,
+                    # scale the weight matrix W with (1-p)
+                    W=next_dropout_layer.W * (1 - dropout_rates[layer_counter]) if dropout else None,
+                    b=next_dropout_layer.b if dropout else None,
+                    n_in=n_in, n_out=n_out,
+                    use_bias=use_bias)
+            self.hidden_layers.append(next_layer)
+            next_layer_input = next_layer.output
+            #first_layer = False
+            layer_counter += 1
+
+        # Set up the output layer
+        if dropout:
+            self.dropout_output_layer = LogisticRegression(
+                    input=next_dropout_layer_input,
+                    n_in=n_out, n_out=n_output_dim)
+
+        # Again, reuse paramters in the dropout output.
+        self.output_layer = LogisticRegression(
+            input=next_layer_input,
+            # scale the weight matrix W with (1-p)
+            W=dropout_output_layer.W * (1 - dropout_rates[-1]) if dropout else None,
+            b=dropout_output_layer.b if dropout else None,
+            n_in=n_out, n_out=n_output_dim)
+
+        # Use the negative log likelihood of the logistic regression layer as
+        # the objective.
+        if dropout:
+            self.dropout_negative_log_likelihood = self.dropout_output_layer.negative_log_likelihood
+            self.dropout_errors = self.dropout_output_layer.errors
+
+        self.negative_log_likelihood = self.output_layer.negative_log_likelihood
+        self.errors = self.output_layer.errors
+        self.y_pred = self.output_layer.y_pred
+
+        # Grab all the layers and parameters together.
+        if dropout:
+            self.layers = self.dropout_conv_pool_layers.extend(self.dropout_hidden_layers.append(self.dropout_output_layer))
+            self.params = [ param for layer in self.dropout_layers for param in layer.params ]
+        else:
+            self.layers = list(itertools.chain(self.conv_pool_layers, self.hidden_layers, [self.output_layer]))
+            self.params = [ param for layer in self.layers for param in layer.params ]
+        assert len(self.layers) == n_convpool_layers + n_hidden_layers + 1
+
+def evaluate_convnet(
+        kernel_position_product=60000,
+        filter_size = (3, 3),
+        pool_size = (2, 2),
+        n_convpool_layers = 2,
+        n_hidden_layers = 3,
+        n_hidden_units = 100,
+        size_input_to_log_layer=500,
+        convpool_layer_activation='tanh',
+        hidden_layer_activation='relu',
+        image_dim=32,
+        n_output_dim=8,
+        initial_learning_rate=0.08,
+        learning_rate_decay=0.998,
+        n_epochs=100,
+        patience=10000,
+        patience_increase=2,
+        improvement_threshold=0.995,
+        batch_size=50,
+        training_data=None,
+        validation_data=None,
+        test_data=None,
+        squared_filter_length_limit = 15.0,
+        mom_params={"start": 0.5,
+                    "end": 0.99,
+                    "interval": 500},
+        dropout=False,
+        dropout_rates = [0.2, 0.5, 0.5],
+        use_bias=True,
+        random_seed=1234
+    ):
+
+    # extract the params for momentum
+    mom_start = mom_params["start"]
+    mom_end = mom_params["end"]
+    mom_epoch_interval = mom_params["interval"]
 
     if training_data is None or validation_data is None:
         print "No dataset given."
         sys.exit(1)
-
-    rng = np.random.RandomState(23455)
 
     # cast the data as tensor variables
     training_data, validation_data, test_data = \
@@ -483,145 +616,68 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     if test_data is not None:
         n_test_batches /= batch_size
 
-    # allocate symbolic variables for the data
-    index = tensor.lscalar()  # index to a [mini]batch
-
-    x = tensor.matrix('x')   # data presented as rasterized images
-    y = tensor.ivector('y')  # labels presented as 1D vector of [int] labels
-
-    learning_rate = theano.shared(np.asarray(initial_learning_rate,
-        dtype=theano.config.floatX))
-
     ######################
     # BUILD ACTUAL MODEL #
     ######################
+
     print '... building the model'
 
-    input_size = (image_dim, image_dim)
-    # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
-    # to a 4D tensor, compatible with our ConvPoolLayer
-    layer0_input = x.reshape((batch_size, 1, input_size[0], input_size[1]))
+    # allocate symbolic variables for the data
+    index = tensor.lscalar()    # index to a [mini]batch
+    epoch = tensor.scalar()
+    x = tensor.matrix('x')  # the data is presented as rasterized images
+    y = tensor.ivector('y')  # the labels are presented as 1D vector of
+                        # [int] labels
+    learning_rate = theano.shared(np.asarray(initial_learning_rate,
+        dtype=theano.config.floatX))
 
-    conv_pool_layers = []
+    rng = np.random.RandomState(random_seed)
 
-    # Construct the first convolutional pooling layer:
-    # filtering reduces the image size
-    # maxpooling reduces this further by a half
-    # 4D output tensor is thus of shape (batch_size, nkerns[0],
-    # new_image_dim, new_image_dim)
-    conv_pool_layers.append(ConvPoolLayer(
-        rng,
-        input=layer0_input,
-        image_shape=(batch_size, 1, input_size[0], input_size[1]),
-        filter_shape=(nkerns[0], 1, filter_size[0], filter_size[1]),
-        poolsize=pool_size,
-        activation=convpool_layer_activation
-    ))
+    # construct the net
+    conv_net = ConvNet(rng=rng,
+                       input=x,
+                       use_bias=use_bias,
+                       kernel_position_product=kernel_position_product,
+                       batch_size=batch_size,
+                       filter_size=filter_size,
+                       pool_size=pool_size,
+                       n_convpool_layers=n_convpool_layers,
+                       n_hidden_layers=n_hidden_layers,
+                       dropout=dropout,
+                       dropout_rates=dropout_rates,
+                       n_hidden_units=n_hidden_units,
+                       size_input_to_log_layer=size_input_to_log_layer,
+                       convpool_layer_activation=convpool_layer_activation,
+                       hidden_layer_activation=hidden_layer_activation,
+                       image_dim=image_dim,
+                       n_output_dim=n_output_dim)
 
-    input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
-                  (input_size[1] - filter_size[1] + 1) / pool_size[1])
+    # Build the expresson for the cost function.
+    cost = conv_net.negative_log_likelihood(y)
+    if dropout:
+        dropout_cost = conv_net.dropout_negative_log_likelihood(y)
 
-    # Construct the next convolutional pooling layers
-    for layer_num in range(1, n_convpool_layers):
-        conv_pool_layers.append(ConvPoolLayer(
-            rng,
-            input=conv_pool_layers[layer_num-1].output,
-            image_shape=(batch_size, nkerns[layer_num-1], input_size[0], input_size[1]),
-            filter_shape=(nkerns[layer_num], nkerns[layer_num-1], filter_size[0], filter_size[1]),
-            poolsize=pool_size,
-            activation=convpool_layer_activation
-        ))
-
-        input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
-                      (input_size[1] - filter_size[1] + 1) / pool_size[1])
-
-    # the HiddenLayer being fully-connected, it operates on 2D matrices of
-    # shape (batch_size, num_pixels) (i.e matrix of rasterized images).
-    # This will generate a matrix of shape (batch_size, nkerns[1] * 4 * 4),
-    # or (500, 50 * 4 * 4) = (500, 800) with the default values.
-    # construct a fully-connected sigmoidal layer
-    hidden_layers = []
-    hidden_layers_with_dropout = []
-    hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
-
-    next_layer_input = conv_pool_layers[-1].output.flatten(2)
-    next_dropout_layer_input = dropout_from_layer(rng, conv_pool_layers[-1].output.flatten(2), p=dropout_rates[0])
-
-    layer_counter = 0
-
-    for n_in, n_out in hidden_layer_weight_matrix_sizes[:-1]:
-        if layer_counter == 0:
-            n_in = nkerns[n_convpool_layers-1] * input_size[0] * input_size[1],
-        next_dropout_layer = HiddenLayerWithDropout(
-            rng=rng,
-            input=next_dropout_layer_input,
-            n_in=n_in, n_out=n_out,
-            dropout_rate=dropout_rates[layer_counter + 1],
-            activation=hidden_layer_activation
-        )
-
-        hidden_layers_with_dropout.append(next_dropout_layer)
-        next_dropout_layer_input = next_dropout_layer.output
-
-        # Reuse the paramters from the dropout layer here, in a different
-        # path through the graph.
-        next_layer = HiddenLayer(
-            rng=rng,
-            input=next_layer_input,
-            # scale the weight matrix W with (1-p)
-            W=next_dropout_layer.W * (1 - dropout_rates[layer_counter]),
-            b=next_dropout_layer.b,
-            n_in=n_in, n_out=n_out,
-            activation=hidden_layer_activation
-        )
-
-        hidden_layers.append(next_layer)
-        next_layer_input = next_layer.output
-
-        layer_counter += 1
-
-    # Set up the output layer
-    n_in, n_out = hidden_layer_weight_matrix_sizes[-1]
-    dropout_output_layer = LogisticRegression(
-        input=next_dropout_layer_input,
-        n_in=n_in, n_out=8
-    )
-
-    # Again, reuse paramters in the dropout output.
-    output_layer = LogisticRegression(
-        input=next_layer_input,
-        # scale the weight matrix W with (1-p)
-        W=dropout_output_layer.W * (1 - dropout_rates[-1]),
-        b=dropout_output_layer.b,
-        n_in=n_in, n_out=8
-    )
-
-    # Use the negative log likelihood of the logistic regression layer as
-    # the objective.
-    dropout_cost = dropout_output_layer.negative_log_likelihood(y)
-    cost = output_layer.negative_log_likelihood(y)
-
-    # create a function to give predictions
+    # compile functions to give predictions
     training_predictions = theano.function(
-        inputs=[],
-        outputs=[output_layer.test(x)],
+        inputs=[index],
+        outputs=[conv_net.y_pred],
         givens={
-            x: train_set_x
+            x: train_set_x[index * batch_size:(index + 1) * batch_size],
         }
     )
 
     validation_predictions = theano.function(
-        inputs=[],
-        outputs=[output_layer.test(x)],
+        inputs=[index],
+        outputs=[conv_net.y_pred],
         givens={
-            x: valid_set_x
+            x: valid_set_x[index * batch_size:(index + 1) * batch_size],
         }
     )
 
     if test_data is not None:
         test_predictions = theano.function(
             inputs=[index],
-            outputs=[output_layer.y_pred],
+            outputs=[conv_net.y_pred],
             givens={
                 x: test_set_x[index * batch_size:(index + 1) * batch_size],
             }
@@ -630,7 +686,7 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     # create a function to compute the mistakes that are made by the model
     training_model = theano.function(
         [index],
-        output_layer.errors(y),
+        conv_net.errors(y),
         givens={
             x: train_set_x[index * batch_size:(index + 1) * batch_size],
             y: train_set_y[index * batch_size:(index + 1) * batch_size]
@@ -639,49 +695,82 @@ def evaluate_lenet5(initial_learning_rate=0.08,
 
     validate_model = theano.function(
         [index],
-        output_layer.errors(y),
+        conv_net.errors(y),
         givens={
             x: valid_set_x[index * batch_size:(index + 1) * batch_size],
             y: valid_set_y[index * batch_size:(index + 1) * batch_size]
         }
     )
 
-    # create a list of all model parameters to be fit by gradient descent
-    params = [layer.params for layer in conv_pool_layers] + \
-             [layer.params for layer in hidden_layers] + \
-             [ output_layer.params ]
-    params = params[::-1] # reverse the array
-    params = reduce(operator.add, params) # flatten the array
+    #TODO: what is this?
+    #theano.printing.pydotprint(test_model, outfile="test_file.png",
+    #        var_with_name_simple=True)
 
-    # create a list of gradients for all model parameters
-    if dropout is True:
-        grads = tensor.grad(dropout_cost, params)
-    else:
-        grads = tensor.grad(cost, params)
+    # Compute gradients of the model wrt parameters
+    gparams = []
+    for param in conv_net.params:
+        # Use the right cost function here to train with or without dropout.
+        gparam = tensor.grad(dropout_cost if dropout else cost, param)
+        gparams.append(gparam)
+
+    # ... and allocate mmeory for momentum'd versions of the gradient
+    gparams_mom = []
+    for param in conv_net.params:
+        gparam_mom = theano.shared(np.zeros(param.get_value(borrow=True).shape,
+            dtype=theano.config.floatX))
+        gparams_mom.append(gparam_mom)
+
+    # Compute momentum for the current epoch
+    mom = ifelse(epoch < mom_epoch_interval,
+            mom_start*(1.0 - epoch/mom_epoch_interval) + mom_end*(epoch/mom_epoch_interval),
+            mom_end)
+
+    # Update the step direction using momentum
+    updates = OrderedDict()
+    for gparam_mom, gparam in zip(gparams_mom, gparams):
+
+        # change the update rule to match Hinton's dropout paper
+        updates[gparam_mom] = mom * gparam_mom - (1. - mom) * learning_rate * gparam
+
+    # ... and take a step along that direction
+    for param, gparam_mom in zip(conv_net.params, gparams_mom):
+        # since we have included learning_rate in gparam_mom, we don't need it
+        # here
+        stepped_param = param + updates[gparam_mom]
+
+        # This is a silly hack to constrain the norms of the rows of the weight
+        # matrices.  This just checks if there are two dimensions to the
+        # parameter and constrains it if so... maybe this is a bit silly but it
+        # should work for now.
+        if param.get_value(borrow=True).ndim == 2:
+            #squared_norms = tensor.sum(stepped_param**2, axis=1).reshape((stepped_param.shape[0],1))
+            #scale = tensor.clip(tensor.sqrt(squared_filter_length_limit / squared_norms), 0., 1.)
+            #updates[param] = stepped_param * scale
+
+            # constrain the norms of the COLUMNs of the weight, according to
+            # https://github.com/BVLC/caffe/issues/109
+            col_norms = tensor.sqrt(tensor.sum(tensor.sqr(stepped_param), axis=0))
+            desired_norms = tensor.clip(col_norms, 0, tensor.sqrt(squared_filter_length_limit))
+            scale = desired_norms / (1e-7 + col_norms)
+            updates[param] = stepped_param * scale
+        else:
+            updates[param] = stepped_param
 
 
-    # train_model is a function that updates the model parameters by
-    # SGD Since this model has many parameters, it would be tedious to
-    # manually create an update rule for each model parameter. We thus
-    # create the updates list by automatically looping over all
-    # (params[i], grads[i]) pairs.
-    updates = [
-        (param_i, param_i - learning_rate * grad_i)
-        for param_i, grad_i in zip(params, grads)
-    ]
-
+    # Compile theano function for training.  This returns the training cost and
+    # updates the model parameters.
     output = dropout_cost if dropout else cost
     train_model = theano.function(
-        [index],
-        cost,
+        inputs=[epoch, index],
+        outputs=output,
         updates=updates,
         givens={
-            x: train_set_x[index * batch_size : (index + 1) * batch_size],
-            y: train_set_y[index * batch_size : (index + 1) * batch_size]
+            x: train_set_x[index * batch_size:(index + 1) * batch_size],
+            y: train_set_y[index * batch_size:(index + 1) * batch_size]
         }
     )
 
-    # function for decaying the learning rate after each epoch
+    # function for decaying the learning rate only after each epoch (not minibatch)
     decay_learning_rate = theano.function(
         inputs=[],
         updates={
@@ -695,68 +784,71 @@ def evaluate_lenet5(initial_learning_rate=0.08,
     print '... training'
 
     validation_frequency = min(n_train_batches, patience / 2)
-    # go through this many
-    # minibatches before checking the network
-    # on the validation set; in this case we
-    # check every epoch
 
+    best_params = None
     best_validation_loss = np.inf
     best_iter = 0
     test_score = 0.
+    epoch_counter = 0
+    done_looping = False
     start_time = time.clock()
 
-    epoch = 0
-    done_looping = False
+    #results_file = open(results_file_name, 'wb')
 
-    while (epoch < n_epochs) and (not done_looping):
-        epoch = epoch + 1
-        for minibatch_index in xrange(n_train_batches):
+    while (epoch_counter < n_epochs) and (not done_looping):
+        try:
+            # Train this epoch
+            epoch_counter = epoch_counter + 1
 
-            iter = (epoch - 1) * n_train_batches + minibatch_index
+            for minibatch_index in xrange(n_train_batches):
+                iter = (epoch_counter - 1) * n_train_batches + minibatch_index
 
-            if iter % 100 == 0:
-                print 'training @ iter = ', iter
+                if iter % 100 == 0:
+                    print 'training @ iter = ', iter
 
-            cost_ij = train_model(minibatch_index)
+                minibatch_avg_cost = train_model(epoch_counter, minibatch_index)
 
-            if (iter + 1) % validation_frequency == 0:
+                if (iter + 1) % validation_frequency == 0:
 
-                # compute zero-one loss on training and validation sets
-                training_losses = [
-                    training_model(i)
-                    for i in xrange(n_train_batches)
-                ]
-                this_training_loss = np.mean(training_losses)
+                    # compute zero-one loss on training and validation sets
+                    training_losses = [
+                        training_model(i)
+                        for i in xrange(n_train_batches)
+                    ]
+                    this_training_loss = np.mean(training_losses)
 
-                validation_losses = [
-                    validate_model(i) for i
-                    in xrange(n_valid_batches)
-                ]
-                this_validation_loss = np.mean(validation_losses)
+                    validation_losses = [
+                        validate_model(i) for i
+                        in xrange(n_valid_batches)
+                    ]
+                    this_validation_loss = np.mean(validation_losses)
 
-                print('epoch %i, minibatch %i/%i, learning_rate %f, training error %f %%, validation error %f %%' %
-                      (epoch, minibatch_index + 1, n_train_batches,
-                       learning_rate.get_value(borrow=True),
-                       this_training_loss * 100,
-                       this_validation_loss * 100.))
+                    print('epoch %i, minibatch %i/%i, learning_rate %f, training error %f %%, validation error %f %%' %
+                          (epoch_counter, minibatch_index + 1, n_train_batches,
+                           learning_rate.get_value(borrow=True),
+                           this_training_loss * 100,
+                           this_validation_loss * 100.))
 
-                # if we got the best validation score until now
-                if this_validation_loss < best_validation_loss:
+                    # if we got the best validation score until now
+                    if this_validation_loss < best_validation_loss:
 
-                    #improve patience if loss improvement is good enough
-                    if this_validation_loss < best_validation_loss *  \
-                       improvement_threshold:
-                        patience = max(patience, iter * patience_increase)
+                        #improve patience if loss improvement is good enough
+                        if this_validation_loss < best_validation_loss *  \
+                           improvement_threshold:
+                            patience = max(patience, iter * patience_increase)
 
-                    # save best validation score and iteration number
-                    best_validation_loss = this_validation_loss
-                    best_iter = iter
+                        # save best validation score and iteration number
+                        best_validation_loss = this_validation_loss
+                        best_iter = iter
 
-            if patience <= iter:
-                done_looping = True
-                break
+                if patience <= iter:
+                    done_looping = True
+                    break
 
-        decay_learning_rate()
+            decay_learning_rate()
+
+        except KeyboardInterrupt:
+            break
 
     if test_data is not None:
         test_pred = [
@@ -765,33 +857,6 @@ def evaluate_lenet5(initial_learning_rate=0.08,
         ]
         test_pred = list(itertools.chain.from_iterable(test_pred))
         test_pred = list(itertools.chain.from_iterable(test_pred))
-
-        return best_validation_loss, test_pred
-
-    else:
-        return best_validation_loss
-
-###############################################################################
-# DEBUGGING
-###############################################################################
-# need to get the dimensions right for visualising the filters
-
-        # Plot filters after each training epoch
-        # Construct image from the weight matrix
-        #image = Image.fromarray(
-        #    tile_raster_images(
-        #        X=layer1.W.get_value(borrow=True).T,
-        #        img_shape=(image_dim, image_dim),
-        #        tile_shape=(10, 10),
-        #        tile_spacing=(1, 1)
-        #    )
-        #)
-
-        #image.save('filters_at_epoch_%i.png' % epoch)
-        #plotting_stop = time.clock()
-        #plotting_time += (plotting_stop - plotting_start)
-
-###############################################################################
 
     end_time = time.clock()
     print('Optimization complete.')
@@ -802,21 +867,25 @@ def evaluate_lenet5(initial_learning_rate=0.08,
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
+    if test_data is not None:
+        return best_validation_loss, test_pred
+
+    else:
+        return best_validation_loss
+
 if __name__ == '__main__':
 
     labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
-    #labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
 
-    labeled_training = util.standardize(labeled_training)
-    #util.render_matrix(labeled_training[:100,:], flattened=True)
+    labeled_training -= np.mean(labeled_training) # global contrast normalisation
 
     test_images = util.load_public_test(flatten=True)
-    test_images = util.standardize(test_images)
+    test_images -= np.mean(labeled_training) # global contrast normalisation
 
-    #from zca import ZCA
-    #zca = ZCA().fit(labeled_training)
-    #labeled_training = zca.transform(labeled_training)
+    from zca import ZCA
+    zca = ZCA().fit(labeled_training)
+    labeled_training = zca.transform(labeled_training)
     #render_matrix(labeled_training[:100,:], flattened=True)
 
     #render_matrix(labeled_training[:100,:], flattened=True)
@@ -829,13 +898,11 @@ if __name__ == '__main__':
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
-    _, test_labels = evaluate_lenet5(
+    _, test_labels = evaluate_convnet(
             training_data=(train_data, train_labels),
             validation_data=(valid_data, valid_labels),
-            test_data=test_images,
-            filter_size=(3, 3)
+            test_data=test_images
             )
 
-    print test_labels
     util.write_results(test_labels, 'predictions.csv')
 
