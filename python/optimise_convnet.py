@@ -5,6 +5,7 @@ import numpy as np
 import scipy.io
 import pprint
 from zca import ZCA
+from collections import OrderedDict
 
 def load_labeled_training(flatten=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
@@ -36,23 +37,25 @@ def shuffle_in_unison(a, b):
     np.random.set_state(rng_state)
     np.random.shuffle(b)
 
-labeled_training, labeled_training_labels = load_labeled_training(flatten=True)
+def standardize(images):
+    images = images.astype(float)
+    mean = np.mean(images,axis=1)
+    sd = np.sqrt(np.var(images, axis=1) + 1e-20)
+    for i in range(images.shape[0]):
+        for j in range(len(images[i])):
+            images[i][j] -= mean[i]
 
-zca = ZCA().fit(labeled_training)
-labeled_training = zca.transform(labeled_training)
+    for i in range(images.shape[0]):
+        for j in range(len(images[i])):
+            images[i][j] /= sd[i]
+    return images
 
-# dumb validation set partition for now
-shuffle_in_unison(labeled_training, labeled_training_labels)
-valid_split = labeled_training.shape[0] // 4
-train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
-valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
 
 # create phony parameters for debugging
-test_params = {
+test_params = OrderedDict({
     'number of epochs' : 100,
     'batch size' : 100,
     'filter size' : 3,
-    'number of kernels' : '20,30,40',
     'pool size' : 2,
     'learning rate' : 0.08,
     'learning rate decay' : 0.998,
@@ -60,14 +63,38 @@ test_params = {
     'hidden layer activation function' : 'tanh',
     'number of convpool layers' : 1,
     'number of hidden layers' : 1,
-    'number of hidden units' : 100
-}
+    'number of hidden units' : 100,
+    'product of number of kernels and number of pixel positions' : 60000,
+    'standardisation' : 'True',
+    'ZCA whitening' : 'True',
+    'global contrast normalisation' : 'True'
+    })
 
 def main(job_id, params):
+    labeled_training, labeled_training_labels = load_labeled_training(flatten=True)
+
+    if params['ZCA whitening'] == 'True':
+        zca = ZCA().fit(labeled_training)
+        labeled_training = zca.transform(labeled_training)
+
+    if params['global contrast normalisation'] == 'True':
+        labeled_training -= np.mean(labeled_training)
+
+    if params['standardisation'] == 'True':
+        labeled_training -= standardize(labeled_training)
+
+    # dumb validation set partition for now
+    shuffle_in_unison(labeled_training, labeled_training_labels)
+    valid_split = labeled_training.shape[0] // 4
+    train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
+    valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
+
     pprint.pprint(params)
-    return evaluate_lenet5(
+
+    return evaluate_convnet(
         initial_learning_rate=params['learning rate'][0],
         learning_rate_decay=params['learning rate decay'][0],
+        kernel_position_product=params['product of number of kernels and number of pixel positions'][0],
         n_epochs=params['number of epochs'][0],
         nkerns=[int(n) for n in params['number of kernels'][0].split(',')],
         batch_size=params['batch size'][0],
