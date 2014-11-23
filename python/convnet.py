@@ -170,7 +170,7 @@ class DropoutHiddenLayer(HiddenLayer):
         self.output = _dropout_from_layer(rng, self.output, p=dropout_rate)
 
 def _dropout_from_layer(rng, layer, p):
-    """p is the probablity of dropping a unit
+    """p is the probability of dropping a unit
     """
     srng = theano.tensor.shared_randomstreams.RandomStreams(
             rng.randint(999999))
@@ -338,7 +338,7 @@ def prepare_data(training, validation, test=None):
 
         The reason we store our dataset in shared variables is to allow
         Theano to copy it into the GPU memory (when code is run on GPU).
-        Since copying data into the GPU is slow, copying a minibatch everytime
+        Since copying data into the GPU is slow, copying a minibatch every time
         is needed (the default behaviour if the data is not in a shared
         variable) would lead to a large decrease in performance.
         """
@@ -355,7 +355,7 @@ def prepare_data(training, validation, test=None):
         # we need them as ints (we use labels as index, and if they are
         # floats it doesn't make sense) therefore instead of returning
         # ``shared_y`` we will have to cast it to int. This little hack
-        # lets ous get around this issue
+        # lets us get around this issue
         return shared_x, tensor.cast(shared_y, 'int32')
 
     train_set_x, train_set_y = shared_dataset(train_set)
@@ -507,7 +507,7 @@ class ConvNet(object):
                 self.dropout_hidden_layers.append(next_dropout_layer)
                 next_dropout_layer_input = next_dropout_layer.output
 
-            # Reuse the paramters from the dropout layer here, in a different
+            # Reuse the parameters from the dropout layer here, in a different
             # path through the graph.
             next_layer = HiddenLayer(rng=rng,
                     input=next_layer_input,
@@ -528,7 +528,7 @@ class ConvNet(object):
                     input=next_dropout_layer_input,
                     n_in=n_out, n_out=n_output_dim)
 
-        # Again, reuse paramters in the dropout output.
+        # Again, reuse parameters in the dropout output.
         self.output_layer = LogisticRegression(
             input=next_layer_input,
             # scale the weight matrix W with (1-p)
@@ -652,7 +652,7 @@ def evaluate_convnet(
                        image_dim=image_dim,
                        n_output_dim=n_output_dim)
 
-    # Build the expresson for the cost function.
+    # Build the expression for the cost function.
     cost = conv_net.negative_log_likelihood(y)
     if dropout:
         dropout_cost = conv_net.dropout_negative_log_likelihood(y)
@@ -713,7 +713,7 @@ def evaluate_convnet(
         gparam = tensor.grad(dropout_cost if dropout else cost, param)
         gparams.append(gparam)
 
-    # ... and allocate mmeory for momentum'd versions of the gradient
+    # ... and allocate memory for momentum'd versions of the gradient
     gparams_mom = []
     for param in conv_net.params:
         gparam_mom = theano.shared(np.zeros(param.get_value(borrow=True).shape,
