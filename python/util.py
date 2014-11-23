@@ -64,7 +64,7 @@ def load_public_test(flatten=False):
 def standardize(images):
     images = images.astype(float)
     mean = np.mean(images,axis=1)
-    sd = np.sqrt(np.var(images, axis=1) + 0.01)
+    sd = np.sqrt(np.var(images, axis=1) + 1e-20)
     for i in range(images.shape[0]):
         for j in range(len(images[i])):
             images[i][j] -= mean[i]
