@@ -96,7 +96,6 @@ def main(job_id, params):
         learning_rate_decay=params['learning rate decay'][0],
         kernel_position_product=params['product of number of kernels and number of pixel positions'][0],
         n_epochs=params['number of epochs'][0],
-        nkerns=[int(n) for n in params['number of kernels'][0].split(',')],
         batch_size=params['batch size'][0],
         filter_size = (params['filter size'][0], params['filter size'][0]),
         pool_size = (params['pool size'][0], params['pool size'][0]),
@@ -105,6 +104,9 @@ def main(job_id, params):
         n_hidden_units = params['number of hidden units'][0],
         convpool_layer_activation=params['convpool layer activation function'][0],
         hidden_layer_activation=params['hidden layer activation function'][0],
+        input_dropout=params['input layer dropout probability'][0],
+        convpool_dropout=params['convpool layer dropout probability'][0],
+        hidden_dropout=params['hidden layer dropout probability'][0],
         training_data=(train_data, train_labels),
         validation_data=(valid_data, valid_labels)
     )
