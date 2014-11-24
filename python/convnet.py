@@ -25,7 +25,7 @@ class ConvPoolLayer(object):
     """Pooling layer of a convolutional network """
 
     def __init__(self, rng, input, filter_shape, image_shape, dropout, dropout_rate=0.0,
-            poolsize=(2, 2), activation=tensor.tanh, use_bias=True, W=None, b=None):
+            pool_size=(2, 2), activation=tensor.tanh, use_bias=True, W=None, b=None):
         """
         Allocate a ConvPoolLayer with shared variable internal parameters.
 
@@ -43,8 +43,8 @@ class ConvPoolLayer(object):
         :param image_shape: (batch size, num input feature maps,
                              image height, image width)
 
-        :type poolsize: tuple or list of length 2
-        :param poolsize: the downsampling (pooling) factor (#rows, #cols)
+        :type pool_size: tuple or list of length 2
+        :param pool_size: the downsampling (pooling) factor (#rows, #cols)
         """
 
         assert image_shape[1] == filter_shape[1]
@@ -62,7 +62,7 @@ class ConvPoolLayer(object):
         # "num output feature maps * filter height * filter width" /
         #   pooling size
         fan_out = (filter_shape[0] * np.prod(filter_shape[2:]) /
-                   np.prod(poolsize))
+                   np.prod(pool_size))
 
         # initialize weights with random weights
         W_bound = np.sqrt(6. / (fan_in + fan_out))
@@ -93,7 +93,7 @@ class ConvPoolLayer(object):
         # downsample each feature map individually, using maxpooling
         pooled_out = downsample.max_pool_2d(
             input=conv_out,
-            ds=poolsize,
+            ds=pool_size,
             ignore_border=True
         )
 
@@ -101,13 +101,45 @@ class ConvPoolLayer(object):
         # reshape it to a tensor of shape (1, n_filters, 1, 1). Each bias will
         # thus be broadcasted across mini-batches and feature map
         # width & height
-        self.output = activation(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+        output = self.activation(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+
+        # DROPOUT
+        if dropout:
+            # each dropout layer gets its own random seed for the dropout mask
+            self._dropout_seed_srng = np.random.RandomState(0)
+            # We need to be able to turn on and off the dropout (on for training,
+            # off for testing). Therefore use a shared variable to control
+            # the current dropout state. Start in "ON" state by default.
+            self.dropout_on = theano.shared(np.cast[theano.config.floatX](1.0), \
+                borrow=True)
+            # Create a random stream to generate a random mask of 0 and 1
+            # activations.
+            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
+            # p=1-p because 1's indicate keep and p is prob of dropping
+            self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=output.shape)
+            # When dropout is off, activations must be multiplied by the average
+            # on probability (ie 1 - p)
+            off_gain = (1.0 - dropout_rate)
+            # The cast in the following expression is important because:
+            # int * float32 = float64 which pulls things off the gpu
+            self.output = output * self.dropout_on * tensor.cast(self.mask, theano.config.floatX) + \
+                off_gain * output * (1.0 - self.dropout_on)
+        else:
+            self.output = output
 
         # store parameters of this layer
         if use_bias:
             self.params = [self.W, self.b]
         else:
             self.params = [self.W]
+
+    def set_dropout_on(self, training):
+        if training:
+            dropout_on = 1.0
+        else:
+            dropout_on = 0.0
+        self.dropout_on.set_value(dropout_on)
 
 
 class HiddenLayer(object):
@@ -158,36 +190,41 @@ class HiddenLayer(object):
         else:
             lin_output = tensor.dot(input, self.W)
 
-
         # DROPOUT
-        # each dropout layer gets its own random seed for the dropout mask
-        self._dropout_seed_srng = np.random.RandomState(0)
-        # We need to be able to turn on and off the dropout (on for training,
-        # off for testing). Therefore use a shared variable to control
-        # the current dropout state. Start in "ON" state by default.
-        self.dropout_on = theano.shared(np.cast[theano.config.floatX](1.0), \
-            borrow=True)
-        # Create a random stream to generate a random mask of 0 and 1
-        # activations.
-        seed = self._dropout_seed_srng.randint(0, sys.maxint)
-        srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
-        # p=1-p because 1's indicate keep and p is prob of dropping
-        self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=input.shape)
-        # When dropout is off, activations must be multiplied by the average
-        # on probability (ie 1 - p)
-        off_gain = (1.0 - dropout_rate)
-        # The cast in the following expression is important because:
-        # int * float32 = float64 which pulls things off the gpu
-        self.output = input * self.dropout_on * tensor.cast(self.mask, theano.config.floatX) + \
-            off_gain * input * (1.0 - self.dropout_on)
+        if dropout:
+            # each dropout layer gets its own random seed for the dropout mask
+            self._dropout_seed_srng = np.random.RandomState(0)
+            # We need to be able to turn on and off the dropout (on for training,
+            # off for testing). Therefore use a shared variable to control
+            # the current dropout state. Start in "ON" state by default.
+            self.dropout_on = theano.shared(np.cast[theano.config.floatX](1.0), \
+                borrow=True)
+            # Create a random stream to generate a random mask of 0 and 1
+            # activations.
+            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
+            # p=1-p because 1's indicate keep and p is prob of dropping
+            self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=lin_output.shape)
+            # When dropout is off, activations must be multiplied by the average
+            # on probability (ie 1 - p)
+            off_gain = (1.0 - dropout_rate)
+            # The cast in the following expression is important because:
+            # int * float32 = float64 which pulls things off the gpu
+            self.output = lin_output * self.dropout_on * tensor.cast(self.mask, theano.config.floatX) + \
+                off_gain * lin_output * (1.0 - self.dropout_on)
 
-        self.output = (
-            lin_output if activation is None
-            else activation(lin_output)
-        )
+        else:
+            self.output = lin_output
+
         # parameters of the model
         self.params = [self.W, self.b]
 
+    def set_dropout_on(self, training):
+        if training:
+            dropout_on = 1.0
+        else:
+            dropout_on = 0.0
+        self.dropout_on.set_value(dropout_on)
 
 class LogisticRegression(object):
     """Multi-class Logistic Regression Class
@@ -306,24 +343,11 @@ class LogisticRegression(object):
         else:
             raise NotImplementedError()
 
-def dropout_from_layer(rng, layer, p):
-    """p is the probablity of dropping a unit
-    """
-    srng = theano.theano.shared_randomstreams.RandomStreams(rng.randint(999999))
 
-    # 1 - p is the probability of dropping
-    mask = srng.binomial(n=1, p=1-p, size=layer.shape)
-
-    # The cast is important because
-    # int * float32 = float64 which pulls things off the gpu
-    output = layer * tensor.cast(mask, theano.config.floatX)
-
-    return output
-
-def filter_image(layer, layer_num, epoch, iter):
-    figname = 'images/Filters-id{1:d}-epoch-{2:04d}-iter{3:04d}.png'.format(layer_num, epoch, iter)
+def filter_image(layer, layer_counter, epoch, iter):
+    figname = 'images/Filters-id{0:d}-epoch-{1:04d}-iter{2:04d}.png'.format(layer_counter, epoch, iter)
     filter_img = np.reshape(layer.W.get_value()[:, 0, :, :], (layer.nkerns, layer.filter_size * layer.filter_size))
-    tools.write_image(filter_img, (layer.filter_size, layer.filter_size, 1), figname)
+    util.write_image(filter_img, (layer.filter_size, layer.filter_size, 1), figname)
 
 def prepare_data(training, validation, test=None):
     ''' Prepares the dataset to feed into the model
@@ -401,14 +425,14 @@ def build_convnet(kernel_position_product=30000,
                     mom_params={"start": 0.5,
                                 "end": 0.99,
                                 "interval": 500},
-                    dropout=False,
+                    dropout=True,
                     input_dropout=0.2,
                     convpool_dropout=0.0,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=0.08,
-                    learning_rate_decay=0.998,
+                    initial_learning_rate=1,
+                    learning_rate_decay=0.98,
                     n_epochs=100,
                     patience=10000,
                     patience_increase=2,
@@ -418,7 +442,7 @@ def build_convnet(kernel_position_product=30000,
                     pool_size = (2, 2),
                     n_convpool_layers = 3,
                     n_hidden_layers = 2,
-                    n_hidden_units = 100,
+                    n_hidden_units = 1024,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -442,7 +466,7 @@ def build_convnet(kernel_position_product=30000,
     if dropout:
         # construct the dropout rate list
         dropout_rates = [input_dropout]
-        dropout_rates.extend([convpool_dropout for i in range(n_convpool_layers)])
+        dropout_rates.extend([convpool_dropout for i in range(n_convpool_layers - 1)]) # one less since the input layer is a convpool layer
         dropout_rates.extend([hidden_dropout for i in range(n_hidden_layers)])
 
     if kernel_position_product < 10000:
@@ -506,33 +530,26 @@ def build_convnet(kernel_position_product=30000,
 
     input_size = (image_dim, image_dim)
     # the product of the number of features and the number of pixel positions should be constant across layers
+    # use this product to determine number of kernels
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_current = int(kernel_position_product / pixel_positions)
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
-    # to a 4D tensor, compatible with our ConvPoolLayer
+    # to a 4D tensor, compatible with the ConvPoolLayer
     layer0_input = x.reshape((batch_size, 1, input_size[0], input_size[1]))
     layer0_image_shape=(batch_size, 1, input_size[0], input_size[1])
     layer0_filter_shape=(nkerns_current, 1, filter_size[0], filter_size[1])
 
-    if dropout:
-        # dropout the input
-        next_layer_input = _dropout_from_layer(rng, layer0_input, p=dropout_rates[0])
-
-    # Construct the first convolutional pooling layer:
-    # filtering reduces the image size
-    # maxpooling reduces this further by a half
-    # 4D output tensor is thus of shape (batch_size, nkerns[0],
-    # new_image_dim, new_image_dim)
+    # Construct the first convolutional pooling layer
     conv_pool_layers.append(ConvPoolLayer(
         rng=rng,
         input=layer0_input,
         image_shape=layer0_image_shape,
         filter_shape=layer0_filter_shape,
-        poolsize=pool_size,
+        pool_size=pool_size,
         activation=convpool_layer_activation,
         dropout=dropout,
-        dropout_rate=dropout_rates[layer_num+1] if dropout else 0.0,
+        dropout_rate=dropout_rates[0] if dropout else 0.0,
         use_bias=use_bias
     ))
 
@@ -544,20 +561,20 @@ def build_convnet(kernel_position_product=30000,
     nkerns_current = int(kernel_position_product / pixel_positions)
 
     # Construct the next convolutional pooling layers
-    for layer_num in range(1, n_convpool_layers):
-        next_layer_input = conv_pool_layers[layer_num-1].output
+    for layer_counter in range(1, n_convpool_layers):
+        next_layer_input = conv_pool_layers[layer_counter-1].output
         image_shape=(batch_size, nkerns_previous, input_size[0], input_size[1])
         filter_shape=(nkerns_current, nkerns_previous, filter_size[0], filter_size[1])
 
         conv_pool_layers.append(ConvPoolLayer(
             rng=rng,
-            input=conv_pool_layers[layer_num-1].output,
+            input=conv_pool_layers[layer_counter-1].output,
             image_shape=image_shape,
             filter_shape=filter_shape,
-            poolsize=pool_size,
+            pool_size=pool_size,
             activation=convpool_layer_activation,
             dropout=dropout,
-            dropout_rate=dropout_rates[layer_num+1] if dropout else 0.0,
+            dropout_rate=dropout_rates[layer_counter] if dropout else 0.0,
             use_bias=use_bias
         ))
 
@@ -570,11 +587,7 @@ def build_convnet(kernel_position_product=30000,
 
     nkerns = nkerns_previous
 
-    # the HiddenLayer being fully-connected, it operates on 2D matrices of
-    # shape (batch_size, num_pixels) (i.e matrix of rasterized images).
-    # This will generate a matrix of shape (batch_size, nkerns[1] * 4 * 4),
-    # or (500, 50 * 4 * 4) = (500, 800) with the default values.
-    # construct a fully-connected sigmoidal layer
+    # Construct the hidden layers
     hidden_layer_sizes = [nkerns * input_size[0] * input_size[1]]
     hidden_layer_sizes.extend([n_hidden_units for i in range(n_hidden_layers)])
     hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
@@ -590,20 +603,20 @@ def build_convnet(kernel_position_product=30000,
                 activation=hidden_layer_activation,
                 n_in=n_in, n_out=n_out,
                 dropout=dropout,
-                dropout_rate=dropout_rates[layer_counter+n_convpool_layers+1] if dropout else 0.0,
+                dropout_rate=dropout_rates[layer_counter+n_convpool_layers] if dropout else 0.0,
                 use_bias=use_bias)
         hidden_layers.append(next_layer)
         next_layer_input = next_layer.output
 
         layer_counter += 1
 
-    # classify the values of the fully-connected sigmoidal layer
+    # Construct the softmax output layer
     output_layer = LogisticRegression(input=hidden_layers[-1].output, n_in=n_hidden_units, n_out=n_output_dim)
 
     # the cost we minimize during training is the NLL of the model
     cost = output_layer.negative_log_likelihood(y)
 
-    # create a function to give predictions
+    # create functions to give predictions
     training_predictions = theano.function(
         inputs=[index],
         outputs=[output_layer.y_pred],
@@ -629,7 +642,7 @@ def build_convnet(kernel_position_product=30000,
             }
         )
 
-    # create a function to compute the mistakes that are made by the model
+    # create functions to compute the mistakes that are made by the model
     training_model = theano.function(
         [index],
         output_layer.errors(y),
@@ -648,7 +661,7 @@ def build_convnet(kernel_position_product=30000,
         }
     )
 
-    # extract the params for momentum
+    # extract the parameters for momentum
     mom_start = mom_params["start"]
     mom_end = mom_params["end"]
     mom_epoch_interval = mom_params["interval"]
@@ -663,7 +676,6 @@ def build_convnet(kernel_position_product=30000,
     # Compute gradients of the model wrt parameters
     gparams = []
     for param in params:
-        # Use the right cost function here to train with or without dropout.
         gparam = tensor.grad(cost, param)
         gparams.append(gparam)
 
@@ -683,7 +695,7 @@ def build_convnet(kernel_position_product=30000,
     updates = OrderedDict()
     for gparam_mom, gparam in zip(gparams_mom, gparams):
 
-        # change the update rule to match Hinton's dropout paper
+        # update rule matches Hinton's dropout paper
         updates[gparam_mom] = mom * gparam_mom - (1. - mom) * learning_rate * gparam
 
     # ... and take a step along that direction
@@ -707,13 +719,10 @@ def build_convnet(kernel_position_product=30000,
         else:
             updates[param] = stepped_param
 
-    #####################################################################
-
     train_model = theano.function(
         [epoch, index],
         outputs=cost,
         updates=updates,
-        on_unused_input='warn',
         givens={
             x: train_set_x[index * batch_size : (index + 1) * batch_size],
             y: train_set_y[index * batch_size : (index + 1) * batch_size]
@@ -757,9 +766,22 @@ def build_convnet(kernel_position_product=30000,
                 if iter % 100 == 0:
                     print 'training @ iter = ', iter
 
+                if dropout:
+                    for layer in conv_pool_layers:
+                        layer.set_dropout_on(True)
+                    for layer in hidden_layers:
+                        layer.set_dropout_on(True)
+
                 cost_ij = train_model(epoch_counter, minibatch_index)
 
                 if (iter + 1) % validation_frequency == 0:
+
+                    # turn off dropout for testing
+                    if dropout:
+                        for layer in conv_pool_layers:
+                            layer.set_dropout_on(False)
+                        for layer in hidden_layers:
+                            layer.set_dropout_on(False)
 
                     # compute zero-one loss on training and validation sets
                     training_losses = [
@@ -802,13 +824,26 @@ def build_convnet(kernel_position_product=30000,
                             test_pred = list(itertools.chain.from_iterable(test_pred))
                             # twice to flatten entirely!
 
-                            print 'Wrote test predictions to predictions.csv.\n'
+                            print 'Wrote test predictions to predictions.csv.'
                             util.write_results(test_pred, 'predictions.csv')
 
                             print 'Created filter images in ./images/.\n'
                             for i, layer in enumerate(conv_pool_layers):
-                                filter_image(layer, i, epoch, iter)
+                                filter_image(layer, i, epoch_counter, iter)
 
+#                                shape = layer.W.get_value(borrow=True).shape
+#                                image = layer.W.get_value(borrow=True).reshape(shape[0], shape[2]*shape[3])
+#
+#                                image = Image.fromarray(
+#                                    util.tile_raster_images(
+#                                        X=image,
+#                                        img_shape=(layer.filter_size, layer.filter_size),
+#                                        tile_shape=(10, 10),
+#                                        tile_spacing=(1, 1)
+#                                    )
+#                                )
+#
+#                                image.save('images/filters_at_epoch_%i.png' % epoch_counter)
 
                 if patience <= iter:
                     done_looping = True
@@ -818,7 +853,6 @@ def build_convnet(kernel_position_product=30000,
 
         except KeyboardInterrupt:
             break
-
 
     end_time = time.clock()
     print('Optimization complete.')
@@ -831,36 +865,6 @@ def build_convnet(kernel_position_product=30000,
 
     return best_validation_loss
 
-###############################################################################
-# DEBUGGING
-###############################################################################
-# need to get the dimensions right for visualising the filters
-
-        # Plot filters after each training epoch
-        # Construct image from the weight matrix
-        #image = Image.fromarray(
-        #    tile_raster_images(
-        #        X=layer1.W.get_value(borrow=True).T,
-        #        img_shape=(image_dim, image_dim),
-        #        tile_shape=(10, 10),
-        #        tile_spacing=(1, 1)
-        #    )
-        #)
-
-        #image.save('filters_at_epoch_%i.png' % epoch)
-        #plotting_stop = time.clock()
-        #plotting_time += (plotting_stop - plotting_start)
-
-###############################################################################
-
-    end_time = time.clock()
-    print('Optimization complete.')
-    print('Best validation score of %f %% obtained at iteration %i, '
-          'with test performance %f %%' %
-          (best_validation_loss * 100., best_iter + 1, test_score * 100.))
-    print >> sys.stderr, ('The code for file ' +
-                          os.path.split(__file__)[1] +
-                          ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 if __name__ == '__main__':
     labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
