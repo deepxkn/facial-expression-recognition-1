@@ -72,3 +72,4 @@ output/
 trace.csv
 chooser.GPEIOptChooser.pkl
 chooser.GPEIOptChooser_hyperparameters.txt
+*.lock

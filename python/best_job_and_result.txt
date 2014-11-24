@@ -1,20 +1,20 @@
-Best result: 0.295652
-Job-id: 20002
+Best result: 0.240580
+Job-id: 1
 Parameters: 
 name: "number of epochs"
 int_val: 100
 name: "batch size"
-int_val: 138
+int_val: 115
 name: "filter size"
 int_val: 4
-name: "number of kernels"
-str_val: "30,50,100"
+name: "product of number of kernels and number of pixel positions"
+int_val: 35000
 name: "pool size"
 int_val: 2
 name: "learning rate"
-dbl_val: 0.0486072761556
+dbl_val: 0.0525
 name: "learning rate decay"
-dbl_val: 0.990616061635
+dbl_val: 0.9895
 name: "convpool layer activation function"
 str_val: "tanh"
 name: "hidden layer activation function"
@@ -22,6 +22,12 @@ str_val: "relu"
 name: "number of convpool layers"
 int_val: 2
 name: "number of hidden layers"
-int_val: 2
+int_val: 1
 name: "number of hidden units"
-int_val: 290
+int_val: 1015
+name: "ZCA whitening"
+str_val: "True"
+name: "global contrast normalisation"
+str_val: "True"
+name: "standardisation"
+str_val: "True"
