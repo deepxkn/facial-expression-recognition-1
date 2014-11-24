@@ -1,5 +1,6 @@
 #from zca import ZCA
 import scipy.io
+from scipy import misc
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -292,6 +293,48 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                         tile_col * (W + Ws): tile_col * (W + Ws) + W
                     ] = this_img * c
         return out_array
+
+def write_image(data, imshape, imgname, flat_type='rrggbb'):
+    noimg_inrow = 15;
+    noimg_incol = np.ceil(data.shape[0] / float(noimg_inrow)).astype('int32')
+    space_bw_img = int(max(min(imshape[0], imshape[1]) * .1, 2))  # pixels
+    # print 'Figure spacing = {0:d}'.format(space_bw_img)
+    if len(imshape) == 2 or imshape[2] == 1:
+        F = np.zeros((imshape[0] * noimg_incol + space_bw_img * (noimg_incol - 1), \
+                      imshape[1] * noimg_inrow + space_bw_img * (noimg_inrow - 1))) + data.max() / 2
+        imshape = imshape[0:2]
+    else:
+        F = np.zeros((imshape[0] * noimg_incol + space_bw_img * (noimg_incol - 1), \
+                      imshape[1] * noimg_inrow + space_bw_img * (noimg_inrow - 1), imshape[2])) + data.max() / 2
+
+    im_idx = 0
+    for r in range(noimg_incol):
+        for c in range(noimg_inrow):
+            if im_idx < data.shape[0]:
+                if len(imshape) == 2 or imshape[2] == 1:
+                    im = data[im_idx].reshape(imshape)
+                else:
+                    if flat_type == 'rrggbb':
+                        r_ch = data[im_idx][0:np.prod(imshape[0:2])].reshape(imshape[0:2])
+                        g_ch = data[im_idx][np.prod(imshape[0:2]):2 * np.prod(imshape[0:2])].reshape(imshape[0:2])
+                        b_ch = data[im_idx][2 * np.prod(imshape[0:2]):].reshape(imshape[0:2])
+                    elif flat_type == 'rgbrgb':
+                        r_ch = data[im_idx][0::3].reshape(imshape[0:2])
+                        g_ch = data[im_idx][1::3].reshape(imshape[0:2])
+                        b_ch = data[im_idx][2::3].reshape(imshape[0:2])
+                    im = np.dstack((r_ch, g_ch, b_ch))
+
+                F[r * (imshape[0] + space_bw_img):(r + 1) * (imshape[0]) + r * space_bw_img, \
+                  c * (imshape[1] + space_bw_img):(c + 1) * (imshape[1]) + c * space_bw_img ] = im
+                im_idx += 1
+
+    misc.imsave(imgname, F)
+    # global fig
+    # fig = plt.figure()
+    # plt.imshow(F, cmap=cm.Greys_r)
+    # fig.savefig(imgname)
+    # plt.close(fig)
+    # plt.close()
 
 #if __name__ == '__main__':
     #data = load_labeled_training()
