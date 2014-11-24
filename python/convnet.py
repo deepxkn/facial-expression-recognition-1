@@ -576,16 +576,6 @@ def evaluate_convnet(
     # BUILD ACTUAL MODEL #
     ######################
 
-    print '... building the model'
-
-    # allocate symbolic variables for the data
-    index = tensor.lscalar()    # index to a [mini]batch
-    epoch = tensor.scalar()
-    x = tensor.matrix('x')  # the data is presented as rasterized images
-    y = tensor.ivector('y')  # the labels are presented as 1D vector of
-                        # [int] labels
-    learning_rate = theano.shared(np.asarray(initial_learning_rate,
-        dtype=theano.config.floatX))
 
     rng = np.random.RandomState(random_seed)
 
@@ -663,217 +653,54 @@ def evaluate_convnet(
     #theano.printing.pydotprint(test_model, outfile="test_file.png",
     #        var_with_name_simple=True)
 
-#    # Compute gradients of the model wrt parameters
-#    gparams = []
-#    for param in conv_net.params:
-#        # Use the right cost function here to train with or without dropout.
-#        gparam = tensor.grad(dropout_cost if dropout else cost, param)
-#        gparams.append(gparam)
-#
-#    # ... and allocate memory for momentum'd versions of the gradient
-#    gparams_mom = []
-#    for param in conv_net.params:
-#        gparam_mom = theano.shared(np.zeros(param.get_value(borrow=True).shape,
-#            dtype=theano.config.floatX))
-#        gparams_mom.append(gparam_mom)
-#
-#    # Compute momentum for the current epoch
-#    mom = ifelse(epoch < mom_epoch_interval,
-#            mom_start*(1.0 - epoch/mom_epoch_interval) + mom_end*(epoch/mom_epoch_interval),
-#            mom_end)
-#
-#    # Update the step direction using momentum
-#    updates = OrderedDict()
-#    for gparam_mom, gparam in zip(gparams_mom, gparams):
-#
-#        # change the update rule to match Hinton's dropout paper
-#        updates[gparam_mom] = mom * gparam_mom - (1. - mom) * learning_rate * gparam
-#
-#    # ... and take a step along that direction
-#    for param, gparam_mom in zip(conv_net.params, gparams_mom):
-#        # since we have included learning_rate in gparam_mom, we don't need it
-#        # here
-#        stepped_param = param + updates[gparam_mom]
-#
-#        # This is a silly hack to constrain the norms of the rows of the weight
-#        # matrices.  This just checks if there are two dimensions to the
-#        # parameter and constrains it if so... maybe this is a bit silly but it
-#        # should work for now.
-#        if param.get_value(borrow=True).ndim == 2:
-#            #squared_norms = tensor.sum(stepped_param**2, axis=1).reshape((stepped_param.shape[0],1))
-#            #scale = tensor.clip(tensor.sqrt(squared_filter_length_limit / squared_norms), 0., 1.)
-#            #updates[param] = stepped_param * scale
-#
-#            # max norm regularisation
-#            # constrain the norms of the COLUMNs of the weight, according to
-#            # https://github.com/BVLC/caffe/issues/109
-#            col_norms = tensor.sqrt(tensor.sum(tensor.sqr(stepped_param), axis=0))
-#            desired_norms = tensor.clip(col_norms, 0, tensor.sqrt(squared_filter_length_limit))
-#            scale = desired_norms / (1e-7 + col_norms)
-#            updates[param] = stepped_param * scale
-#        else:
-#            updates[param] = stepped_param
+    # Compute gradients of the model wrt parameters
+    gparams = []
+    for param in conv_net.params:
+        # Use the right cost function here to train with or without dropout.
+        gparam = tensor.grad(dropout_cost if dropout else cost, param)
+        gparams.append(gparam)
 
+    # ... and allocate memory for momentum'd versions of the gradient
+    gparams_mom = []
+    for param in conv_net.params:
+        gparam_mom = theano.shared(np.zeros(param.get_value(borrow=True).shape,
+            dtype=theano.config.floatX))
+        gparams_mom.append(gparam_mom)
 
-    grads = tensor.grad(dropout_cost if dropout else cost, conv_net.params)
+    # Compute momentum for the current epoch
+    mom = ifelse(epoch < mom_epoch_interval,
+            mom_start*(1.0 - epoch/mom_epoch_interval) + mom_end*(epoch/mom_epoch_interval),
+            mom_end)
 
-    # train_model is a function that updates the model parameters by
-    # SGD Since this model has many parameters, it would be tedious to
-    # manually create an update rule for each model parameter. We thus
-    # create the updates list by automatically looping over all
-    # (params[i], grads[i]) pairs.
-    updates = [
-        (param_i, param_i - learning_rate * grad_i)
-        for param_i, grad_i in zip(conv_net.params, grads)
-    ]
+    # Update the step direction using momentum
+    updates = OrderedDict()
+    for gparam_mom, gparam in zip(gparams_mom, gparams):
 
-    # Compile theano function for training.  This returns the training cost and
-    # updates the model parameters.
-    output = dropout_cost if dropout else cost
-    train_model = theano.function(
-        inputs=[epoch, index],
-        outputs=output,
-        updates=updates,
-        givens={
-            x: train_set_x[index * batch_size:(index + 1) * batch_size],
-            y: train_set_y[index * batch_size:(index + 1) * batch_size]
-        },
-        on_unused_input='warn'
-    )
+        # change the update rule to match Hinton's dropout paper
+        updates[gparam_mom] = mom * gparam_mom - (1. - mom) * learning_rate * gparam
 
-    # function for decaying the learning rate only after each epoch (not minibatch)
-    decay_learning_rate = theano.function(
-        inputs=[],
-        updates={
-            learning_rate: learning_rate * learning_rate_decay
-        }
-    )
+    # ... and take a step along that direction
+    for param, gparam_mom in zip(conv_net.params, gparams_mom):
+        # since we have included learning_rate in gparam_mom, we don't need it
+        # here
+        stepped_param = param + updates[gparam_mom]
 
-    ###############
-    # TRAIN MODEL #
-    ###############
-    print '... training'
+        # This is a silly hack to constrain the norms of the rows of the weight
+        # matrices.  This just checks if there are two dimensions to the
+        # parameter and constrains it if so... maybe this is a bit silly but it
+        # should work for now.
+        if param.get_value(borrow=True).ndim == 2:
+            #squared_norms = tensor.sum(stepped_param**2, axis=1).reshape((stepped_param.shape[0],1))
+            #scale = tensor.clip(tensor.sqrt(squared_filter_length_limit / squared_norms), 0., 1.)
+            #updates[param] = stepped_param * scale
 
-    validation_frequency = min(n_train_batches, patience / 2)
-
-    best_validation_loss = np.inf
-    best_iter = 0
-    test_score = 0.
-    epoch_counter = 0
-    done_looping = False
-    start_time = time.clock()
-
-    #results_file = open(results_file_name, 'wb')
-
-    while (epoch_counter < n_epochs) and (not done_looping):
-        try:
-            # Train this epoch
-            epoch_counter = epoch_counter + 1
-
-            for minibatch_index in xrange(n_train_batches):
-                iter = (epoch_counter - 1) * n_train_batches + minibatch_index
-
-                if iter % 100 == 0:
-                    print 'training @ iter = ', iter
-
-                minibatch_avg_cost = train_model(epoch_counter, minibatch_index)
-
-                if (iter + 1) % validation_frequency == 0:
-
-                    # compute zero-one loss on training and validation sets
-                    training_losses = [
-                        training_model(i)
-                        for i in xrange(n_train_batches)
-                    ]
-                    this_training_loss = np.mean(training_losses)
-
-                    validation_losses = [
-                        validate_model(i) for i
-                        in xrange(n_valid_batches)
-                    ]
-                    this_validation_loss = np.mean(validation_losses)
-
-                    print('epoch %i, minibatch %i/%i, learning_rate %f, training error %f %%, validation error %f %%' %
-                          (epoch_counter, minibatch_index + 1, n_train_batches,
-                           learning_rate.get_value(borrow=True),
-                           this_training_loss * 100,
-                           this_validation_loss * 100.))
-
-                    # if we got the best validation score until now
-                    if this_validation_loss < best_validation_loss:
-
-                        #improve patience if loss improvement is good enough
-                        if this_validation_loss < best_validation_loss *  \
-                           improvement_threshold:
-                            patience = max(patience, iter * patience_increase)
-
-                        # save best validation score and iteration number
-                        best_validation_loss = this_validation_loss
-                        best_iter = iter
-
-                        # test it on the test set
-                        if test_data is not None:
-                            test_pred = [
-                                test_predictions(i) for i
-                                in xrange(n_test_batches)
-                            ]
-                            test_pred = list(itertools.chain.from_iterable(test_pred))
-                            print 'Wrote test predictions to file.\n'
-
-                if patience <= iter:
-                    done_looping = True
-                    break
-
-            decay_learning_rate()
-
-        except KeyboardInterrupt:
-            break
-
-    end_time = time.clock()
-    print('Optimization complete.')
-    print('Best validation score of %f %% obtained at iteration %i, '
-          'with test performance %f %%' %
-          (best_validation_loss * 100., best_iter + 1, test_score * 100.))
-    print >> sys.stderr, ('The code for file ' +
-                          os.path.split(__file__)[1] +
-                          ' ran for %.2fm' % ((end_time - start_time) / 60.))
-
-    if test_data is not None:
-        return best_validation_loss, test_pred
-
-    else:
-        return best_validation_loss
-
-if __name__ == '__main__':
-
-    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
-    assert labeled_training.shape == (2925, 1024)
-
-    labeled_training -= np.mean(labeled_training) # global contrast normalisation
-
-    test_images = util.load_public_test(flatten=True)
-    test_images -= np.mean(labeled_training) # global contrast normalisation
-
-    from zca import ZCA
-    zca = ZCA().fit(labeled_training)
-    labeled_training = zca.transform(labeled_training)
-    #render_matrix(labeled_training[:100,:], flattened=True)
-
-    #render_matrix(labeled_training[:100,:], flattened=True)
-    #labeled_training = global_contrast_normalize(labeled_training, use_std=True)
-    #render_matrix(labeled_training[:100,:], flattened=True)
-
-    # dumb validation set partition for now
-    util.shuffle_in_unison(labeled_training, labeled_training_labels)
-    valid_split = labeled_training.shape[0] // 12
-    train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
-    valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
-
-    _, test_labels = evaluate_convnet(
-            training_data=(train_data, train_labels),
-            validation_data=(valid_data, valid_labels),
-            test_data=test_images
-            )
-
-    util.write_results(test_labels, 'predictions.csv')
+            # max norm regularisation
+            # constrain the norms of the COLUMNs of the weight, according to
+            # https://github.com/BVLC/caffe/issues/109
+            col_norms = tensor.sqrt(tensor.sum(tensor.sqr(stepped_param), axis=0))
+            desired_norms = tensor.clip(col_norms, 0, tensor.sqrt(squared_filter_length_limit))
+            scale = desired_norms / (1e-7 + col_norms)
+            updates[param] = stepped_param * scale
+        else:
+            updates[param] = stepped_param
 
