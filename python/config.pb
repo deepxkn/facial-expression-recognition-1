@@ -23,7 +23,7 @@ variable {
     name: "filter size"
     type: INT
     size: 1
-    min: 2
+    min: 3
     max: 5
 }
 
