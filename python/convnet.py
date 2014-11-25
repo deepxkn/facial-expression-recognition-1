@@ -114,7 +114,7 @@ class ConvPoolLayer(object):
                 borrow=True)
             # Create a random stream to generate a random mask of 0 and 1
             # activations.
-            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            seed = self._dropout_seed_srng.randint(0, 999999)
             srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
             # p=1-p because 1's indicate keep and p is prob of dropping
             self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=output.shape)
@@ -201,7 +201,7 @@ class HiddenLayer(object):
                 borrow=True)
             # Create a random stream to generate a random mask of 0 and 1
             # activations.
-            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            seed = self._dropout_seed_srng.randint(0, 999999)
             srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
             # p=1-p because 1's indicate keep and p is prob of dropping
             self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=lin_output.shape)
@@ -427,21 +427,21 @@ def build_convnet(kernel_position_product=30000,
                                 "interval": 500},
                     dropout=True,
                     input_dropout=0.2,
-                    convpool_dropout=0.0,
+                    convpool_dropout=0.5,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=1,
+                    initial_learning_rate=0.2,
                     learning_rate_decay=0.98,
-                    n_epochs=100,
+                    n_epochs=200,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
                     batch_size=30,
-                    filter_size = (2, 2),
+                    filter_size = (3, 3),
                     pool_size = (2, 2),
-                    n_convpool_layers = 3,
-                    n_hidden_layers = 2,
+                    n_convpool_layers = 2,
+                    n_hidden_layers = 3,
                     n_hidden_units = 1024,
                     training_data=None,
                     validation_data=None,
