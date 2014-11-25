@@ -420,37 +420,34 @@ def relu(x):
 def build_convnet(kernel_position_product=30000,
                     convpool_layer_activation='tanh',
                     hidden_layer_activation='relu',
-                    n_output_dim=8,
+                    n_output_dim=7,
                     squared_filter_length_limit = 15.0,
                     mom_params={"start": 0.5,
                                 "end": 0.99,
                                 "interval": 500},
                     dropout=True,
                     input_dropout=0.2,
-                    convpool_dropout=0.0,
+                    convpool_dropout=0.5,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=1,
+                    initial_learning_rate=0.1,
                     learning_rate_decay=0.98,
                     n_epochs=100,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
                     batch_size=30,
-                    filter_size = (2, 2),
+                    filter_size = (3, 3),
                     pool_size = (2, 2),
-                    n_convpool_layers = 3,
-                    n_hidden_layers = 2,
+                    n_convpool_layers = 2,
+                    n_hidden_layers = 3,
                     n_hidden_units = 1024,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
                     image_dim=32):
 
-    print 'Kernel position product: ', kernel_position_product
-    print 'Filter size: ', filter_size
-    print 'Pool size: ', pool_size
     print 'Number of convolutional pooling layers: ', n_convpool_layers
     print 'Number of hidden layers: ', n_hidden_layers
     print 'Number of hidden units: ', n_hidden_units
@@ -528,11 +525,15 @@ def build_convnet(kernel_position_product=30000,
 
     conv_pool_layers = []
 
+    nkerns_list = []
+
     input_size = (image_dim, image_dim)
     # the product of the number of features and the number of pixel positions should be constant across layers
     # use this product to determine number of kernels
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_current = int(kernel_position_product / pixel_positions)
+
+    nkerns_list.append(nkerns_current)
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
     # to a 4D tensor, compatible with the ConvPoolLayer
@@ -581,11 +582,17 @@ def build_convnet(kernel_position_product=30000,
         input_size = ((input_size[0] - filter_size[0] + 1) / pool_size[0],
                       (input_size[1] - filter_size[1] + 1) / pool_size[1])
 
+        nkerns_list.append(nkerns_current)
+
         pixel_positions = (input_size[0] - filter_size[0] + 1)**2
         nkerns_previous = nkerns_current
         nkerns_current = int(kernel_position_product / pixel_positions)
 
     nkerns = nkerns_previous
+
+    print 'Filter size: ', filter_size
+    print 'Pool size: ', pool_size
+    print "Number of kernels in each layer: ", nkerns_list
 
     # Construct the hidden layers
     hidden_layer_sizes = [nkerns * input_size[0] * input_size[1]]
@@ -825,7 +832,7 @@ def build_convnet(kernel_position_product=30000,
                             # twice to flatten entirely!
 
                             print 'Wrote test predictions to predictions.csv.'
-                            util.write_results(test_pred, 'predictions.csv')
+                            util.write_results(test_pred+1, 'predictions.csv')
 
                             print 'Created filter images in ./images/.\n'
                             for i, layer in enumerate(conv_pool_layers):
@@ -867,7 +874,7 @@ def build_convnet(kernel_position_product=30000,
 
 
 if __name__ == '__main__':
-    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
+    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True, zero_index=True)
     #labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
 
