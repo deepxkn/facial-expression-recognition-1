@@ -75,7 +75,7 @@ def standardize(images):
             images[i][j] /= sd[i]
     return images
 
-def load_labeled_training(flatten=False):
+def load_labeled_training(flatten=False, zero_index=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
     labels = np.asarray([l[0] for l in labels])
@@ -91,6 +91,9 @@ def load_labeled_training(flatten=False):
         n, x, y = images.shape
         images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
         assert images.shape == (n, x*y)
+
+    if zero_index:
+        labels -= 1
 
     return images, labels
 
