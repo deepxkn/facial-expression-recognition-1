@@ -444,7 +444,7 @@ def build_convnet(kernel_position_product=30000,
                     use_bias=True,
                     random_seed=1234,
                     initial_learning_rate=0.5,
-                    learning_rate_decay=0.98,
+                    learning_rate_decay=0.998,
                     n_epochs=200,
                     patience=10000,
                     patience_increase=2,
@@ -455,8 +455,8 @@ def build_convnet(kernel_position_product=30000,
                     n_convpool_layers = 3,
                     n_hidden_layers = 2,
                     n_hidden_units = 1024,
-                    L1_reg = 0.0,
-                    L2_reg = 0.2,
+                    L1_reg = 0.00,
+                    L2_reg = 0.02,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -473,6 +473,7 @@ def build_convnet(kernel_position_product=30000,
     print 'Momentum parameters: ', mom_params
     print 'Dropout enabled?: ', dropout
     print 'Dropout rates: ', 'input', input_dropout, 'convpool dropout', convpool_dropout, 'hidden dropout', hidden_dropout
+    print 'Rgeularisation coefficients: ', 'L1', L1_reg, 'L2', L2_reg
 
     if dropout:
         # construct the dropout rate list
