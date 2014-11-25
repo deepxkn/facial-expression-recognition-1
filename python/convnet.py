@@ -443,20 +443,20 @@ def build_convnet(kernel_position_product=30000,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=0.5,
-                    learning_rate_decay=0.98,
+                    initial_learning_rate=0.05,
+                    learning_rate_decay=0.998,
                     n_epochs=200,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
-                    batch_size=30,
+                    batch_size=20,
                     filter_size = (3, 3),
                     pool_size = (2, 2),
-                    n_convpool_layers = 3,
-                    n_hidden_layers = 2,
-                    n_hidden_units = 1024,
-                    L1_reg = 0.0,
-                    L2_reg = 0.2,
+                    n_convpool_layers = 2,
+                    n_hidden_layers = 1,
+                    n_hidden_units = 100,
+                    L1_reg = 0.00,
+                    L2_reg = 0.01,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -547,6 +547,9 @@ def build_convnet(kernel_position_product=30000,
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_current = int(kernel_position_product / pixel_positions)
 
+    #TODO: hack
+    nkerns_current = 30
+
     nkerns_list.append(nkerns_current)
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
@@ -574,6 +577,10 @@ def build_convnet(kernel_position_product=30000,
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_previous = nkerns_current
     nkerns_current = int(kernel_position_product / pixel_positions)
+
+    #TODO: hack
+    nkerns_current = 50
+
 
     # Construct the next convolutional pooling layers
     for layer_counter in range(1, n_convpool_layers):
