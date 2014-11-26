@@ -434,8 +434,8 @@ def build_convnet(kernel_position_product=30000,
                     hidden_layer_activation='relu',
                     n_output_dim=7,
                     squared_filter_length_limit = 15.0,
-                    mom_params={"start": 0.5,
-                                "end": 0.99,
+                    mom_params={"start": 0.0,
+                                "end": 0.0,
                                 "interval": 500},
                     dropout=True,
                     input_dropout=0.2,
@@ -443,13 +443,13 @@ def build_convnet(kernel_position_product=30000,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=0.5,
-                    learning_rate_decay=0.998,
+                    initial_learning_rate=10,
+                    learning_rate_decay=0.98,
                     n_epochs=200,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
-                    batch_size=30,
+                    batch_size=20,
                     filter_size = (3, 3),
                     pool_size = (2, 2),
                     n_convpool_layers = 3,
@@ -548,6 +548,9 @@ def build_convnet(kernel_position_product=30000,
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_current = int(kernel_position_product / pixel_positions)
 
+    #TODO: hack
+    nkerns_current = 30
+
     nkerns_list.append(nkerns_current)
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
@@ -576,8 +579,12 @@ def build_convnet(kernel_position_product=30000,
     nkerns_previous = nkerns_current
     nkerns_current = int(kernel_position_product / pixel_positions)
 
+    #TODO: hack
+    nkerns_current = 50
+
+
     # Construct the next convolutional pooling layers
-    for layer_counter in range(1, n_convpool_layers):
+    for layer_counter in range(1, n_convpool_layers+1):
         next_layer_input = conv_pool_layers[layer_counter-1].output
         image_shape=(batch_size, nkerns_previous, input_size[0], input_size[1])
         filter_shape=(nkerns_current, nkerns_previous, filter_size[0], filter_size[1])
@@ -606,6 +613,9 @@ def build_convnet(kernel_position_product=30000,
         except ZeroDivisionError:
             pass
 
+        n_kerns_current = 50
+        print n_kerns_current
+
     nkerns = nkerns_previous
 
     print 'Filter size: ', filter_size
@@ -617,7 +627,7 @@ def build_convnet(kernel_position_product=30000,
     hidden_layer_sizes.extend([n_hidden_units for i in range(n_hidden_layers)])
     hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
-    hidden_layers = []
+    idden_layers = []
 
     next_layer_input = conv_pool_layers[-1].output.flatten(2)
 
