@@ -47,7 +47,7 @@ def load_pca_test(K=30):
 
 def load_public_test(flatten=False):
     test = scipy.io.loadmat('../public_test_images.mat')
-    images = test['public_test_images']
+    images = np.array(test['public_test_images'], dtype='float32')
     # permute dimensions so that the number of instances is first
     x, y, n = images.shape
     images = np.transpose(images, [2, 0, 1])
@@ -78,7 +78,8 @@ def load_labeled_training(flatten=False, zero_index=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')
     labels = labeled['tr_labels']
     labels = np.asarray([l[0] for l in labels])
-    images = labeled['tr_images']
+    #images = np.array(labeled['tr_images'], dtype='float32')
+    images = np.array(labeled['tr_images'], dtype='int32')
 
     # permute dimensions so that the number of instances is first
     x, y, n = images.shape
@@ -98,7 +99,7 @@ def load_labeled_training(flatten=False, zero_index=False):
 
 def load_unlabeled_training(flatten=False):
     unlabeled = scipy.io.loadmat('../unlabeled_images.mat')
-    images = unlabeled['unlabeled_images']
+    images = np.array(unlabeled['unlabeled_images'], dtype='float32')
 
     # permute dimensions so that the number of instances is first
     x, y, n = images.shape
@@ -132,7 +133,7 @@ def render_matrix(matrix, flattened=False, image_height=None,
     """Shows matrix as a set of images.
     Plots images in row-major order.
     """
-    if matrix.shape[0] > 200:
+    if matrix.shape[0] > 600:
         print('Too many images to render efficiently.')
         return
     nrows = matrix.shape[0]//ncols+1
@@ -164,6 +165,7 @@ def render_matrix(matrix, flattened=False, image_height=None,
 
     if show:
         plt.show()
+
 
 """The following two functions are from
 http://deeplearning.net/tutorial/code/utils.py.
@@ -331,12 +333,11 @@ def write_image(data, imshape, imgname, flat_type='rrggbb'):
                 im_idx += 1
 
     misc.imsave(imgname, F)
-    # global fig
-    # fig = plt.figure()
-    # plt.imshow(F, cmap=cm.Greys_r)
-    # fig.savefig(imgname)
-    # plt.close(fig)
-    # plt.close()
+    fig = plt.figure()
+    plt.imshow(F, cmap=cm.Greys_r)
+    fig.savefig(imgname)
+    plt.close(fig)
+    plt.close()
 
 #if __name__ == '__main__':
     #data = load_labeled_training()

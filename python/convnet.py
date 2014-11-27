@@ -10,6 +10,9 @@ import operator
 #from PIL import Image
 from collections import OrderedDict
 
+from pylearn2.datasets import preprocessing
+from pylearn2.datasets.dense_design_matrix import DenseDesignMatrix
+
 import theano
 import theano.tensor as tensor
 from theano.ifelse import ifelse
@@ -434,8 +437,8 @@ def build_convnet(kernel_position_product=30000,
                     hidden_layer_activation='relu',
                     n_output_dim=7,
                     squared_filter_length_limit = 15.0,
-                    mom_params={"start": 0.0,
-                                "end": 0.0,
+                    mom_params={"start": 0.5,
+                                "end": 0.99,
                                 "interval": 500},
                     dropout=True,
                     input_dropout=0.2,
@@ -443,7 +446,7 @@ def build_convnet(kernel_position_product=30000,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=10,
+                    initial_learning_rate=0.1,
                     learning_rate_decay=0.98,
                     n_epochs=200,
                     patience=10000,
@@ -452,9 +455,9 @@ def build_convnet(kernel_position_product=30000,
                     batch_size=20,
                     filter_size = (3, 3),
                     pool_size = (2, 2),
-                    n_convpool_layers = 3,
-                    n_hidden_layers = 2,
-                    n_hidden_units = 1024,
+                    n_convpool_layers = 2,
+                    n_hidden_layers = 1,
+                    n_hidden_units = 200,
                     L1_reg = 0.00,
                     L2_reg = 0.02,
                     training_data=None,
@@ -579,12 +582,13 @@ def build_convnet(kernel_position_product=30000,
     nkerns_previous = nkerns_current
     nkerns_current = int(kernel_position_product / pixel_positions)
 
-    #TODO: hack
-    nkerns_current = 50
-
 
     # Construct the next convolutional pooling layers
-    for layer_counter in range(1, n_convpool_layers+1):
+    for layer_counter in range(1, n_convpool_layers):
+        #TODO: hack
+        nkerns_current = 50
+        print layer_counter
+        print nkerns_current
         next_layer_input = conv_pool_layers[layer_counter-1].output
         image_shape=(batch_size, nkerns_previous, input_size[0], input_size[1])
         filter_shape=(nkerns_current, nkerns_previous, filter_size[0], filter_size[1])
@@ -614,7 +618,6 @@ def build_convnet(kernel_position_product=30000,
             pass
 
         n_kerns_current = 50
-        print n_kerns_current
 
     nkerns = nkerns_previous
 
@@ -627,7 +630,7 @@ def build_convnet(kernel_position_product=30000,
     hidden_layer_sizes.extend([n_hidden_units for i in range(n_hidden_layers)])
     hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
-    idden_layers = []
+    hidden_layers = []
 
     next_layer_input = conv_pool_layers[-1].output.flatten(2)
 
@@ -899,29 +902,44 @@ def build_convnet(kernel_position_product=30000,
 
 if __name__ == '__main__':
     labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
+    unlabeled_training = util.load_unlabeled_training(flatten=True)
     #labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
-
-    labeled_training = util.standardize(labeled_training)
-    #util.render_matrix(labeled_training[:100,:], flattened=True)
 
     test_images = util.load_public_test(flatten=True)
     test_images = util.standardize(test_images)
 
-    from zca import ZCA
-    zca = ZCA().fit(labeled_training)
-    labeled_training = zca.transform(labeled_training)
-    #render_matrix(labeled_training[:100,:], flattened=True)
+    # pylearn2 preprocessing
+    tdm = DenseDesignMatrix(X=labeled_training, y=labeled_training_labels)
+
+    # normalise global contrast
+    gcn = preprocessing.GlobalContrastNormalization()
+    gcn.apply(tdm)
+
+    labeled_training = tdm.get_design_matrix()
+    util.render_matrix(labeled_training[:100,:], flattened=True)
+
+    # apply ZCA transformation
+    zca = preprocessing.ZCA()
+    zca.fit(unlabeled_training)
+    zca.apply(tdm)
+
+    labeled_training = tdm.get_design_matrix()
+    util.render_matrix(labeled_training[:100,:], flattened=True)
 
     #render_matrix(labeled_training[:100,:], flattened=True)
     #labeled_training = global_contrast_normalize(labeled_training, use_std=True)
     #render_matrix(labeled_training[:100,:], flattened=True)
 
     # dumb validation set partition for now
-    util.shuffle_in_unison(labeled_training, labeled_training_labels)
+    #util.shuffle_in_unison(labeled_training, labeled_training_labels)
     valid_split = labeled_training.shape[0] // 4
+
     train_data, train_labels = (labeled_training[valid_split:, :], labeled_training_labels[valid_split:])
+    util.shuffle_in_unison(train_data, train_labels)
+
     valid_data, valid_labels = (labeled_training[:valid_split, :], labeled_training_labels[:valid_split])
+    util.shuffle_in_unison(valid_data, valid_labels)
 
     _ = build_convnet(
             training_data=(train_data, train_labels),
