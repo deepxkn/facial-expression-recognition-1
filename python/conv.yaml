@@ -3,7 +3,7 @@
         !obj:pylearn2.cross_validation.dataset_iterators.DatasetKFold {
             dataset:
                 &train !pkl: "preprocessed_labeled_training_for_pylearn2.pkl",
-            n_folds: 8,
+            n_folds: 4,
             shuffle: False
         },
     model: !obj:pylearn2.models.mlp.MLP {
@@ -16,27 +16,27 @@
                  layer_name: 'conv1',
                  output_channels: %(output_channels_conv1)i,
                  irange: .05,
-                 kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 kernel_shape: [3, 3],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.ConvRectifiedLinear {
                  layer_name: 'conv2',
                  output_channels: %(output_channels_conv2)i,
                  irange: .05,
-                 kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 kernel_shape: [3, 3],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
                  layer_name: 'h1',
-                 dim: 500,
+                 dim: 1024,
                  irange: 0.0575059125935,
                  # Rather than using weight decay, we constrain the norms of the weight vectors
                  max_col_norm: 1.
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
                  layer_name: 'h2',
-                 dim: 500,
+                 dim: 1024,
                  irange: 0.00891030471479,
                  # Rather than using weight decay, we constrain the norms of the weight vectors
                  max_col_norm: 1.
@@ -52,7 +52,7 @@
         batch_size: %(batch_size)i,
         train_iteration_mode: 'even_shuffled_sequential',
         monitor_iteration_mode: 'even_sequential',
-        learning_rate: .08,
+        learning_rate: 1,
         learning_rule: !obj:pylearn2.training_algorithms.learning_rule.Momentum {
             init_momentum: .5
         },
@@ -101,7 +101,7 @@
     cv_extensions: [
         !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
             channel_name: 'test_y_misclass',
-            save_path: "best_convnet_params.pkl"
+            save_path: "best_convnet_model.pkl"
         },
     ],
 }
