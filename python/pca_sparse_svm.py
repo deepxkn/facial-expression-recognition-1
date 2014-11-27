@@ -3,8 +3,10 @@ import sys
 from util import load_pca_proj, shuffle_in_unison, load_pca_test, write_results, load_labeled_training, standardize, load_unlabeled_training, load_public_test
 from sklearn.decomposition import SparsePCA
 from sklearn.decomposition import KernelPCA
-from sklearn.decomposition import DictionaryLearning
+from sklearn.decomposition import DictionaryLearning, MiniBatchDictionaryLearning
 from sklearn.decomposition import SparseCoder
+from sklearn.svm import SVC
+from sklearn import cross_validation
 import numpy as np
 
 def main():
@@ -15,10 +17,11 @@ def main():
     test = load_public_test(flatten=True)
     test = standardize(test)
     shuffle_in_unison(images, labels)
-    d = DictionaryLearning().fit(images)
-    s = SparseCoder(d)
-    test_proj = s.transform(images)
-    pt = s.transform_alpha(test)
+    #d = DictionaryLearning().fit(images)
+    d = MiniBatchDictionaryLearning(n_components=500, n_iter=500, verbose=True).fit(images)
+    s = SparseCoder(d.components_)
+    proj_test = s.transform(images)
+    pt = s.transform(test)
     #kpca = KernelPCA(kernel="rbf")
     #kpca.fit(unl)
     #test_proj = kpca.transform(images)
@@ -31,7 +34,6 @@ def main():
     print scores
     print np.mean(scores)
     print np.var(scores)
-    pt = load_pca_test(K=k)
     svc.fit(proj_test, labels)
     pred = svc.predict(pt)
     write_results(pred, '../svm_res.csv')

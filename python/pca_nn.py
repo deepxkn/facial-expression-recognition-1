@@ -25,9 +25,9 @@ def main():
     test, train = ds.splitWithProportion(0.2)
     test._convertToOneOfMany()
     train._convertToOneOfMany()
-    net=shortcuts.buildNetwork(train.indim, 200, 400,train.outdim, outclass=SoftmaxLayer)
+    net=shortcuts.buildNetwork(train.indim, 500, 1000,train.outdim, outclass=SoftmaxLayer)
 
-    trainer = BackpropTrainer(net, dataset=train, learningrate=0.005, weightdecay=0.005)
+    trainer = BackpropTrainer(net, dataset=train, learningrate=0.005, weightdecay=0.01)
     #trainer = RPropMinusTrainer(net, dataset=train)
     #cv = validation.CrossValidator(trainer, ds)
     #print cv.validate()
