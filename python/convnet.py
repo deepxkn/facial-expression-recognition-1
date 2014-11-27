@@ -114,7 +114,7 @@ class ConvPoolLayer(object):
                 borrow=True)
             # Create a random stream to generate a random mask of 0 and 1
             # activations.
-            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            seed = self._dropout_seed_srng.randint(0, 999999)
             srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
             # p=1-p because 1's indicate keep and p is prob of dropping
             self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=output.shape)
@@ -127,6 +127,10 @@ class ConvPoolLayer(object):
                 off_gain * output * (1.0 - self.dropout_on)
         else:
             self.output = output
+
+        # L1 and L2 regularisation
+        self.L1 = self.W.sum()
+        self.L2 = (self.W ** 2).sum()
 
         # store parameters of this layer
         if use_bias:
@@ -201,7 +205,7 @@ class HiddenLayer(object):
                 borrow=True)
             # Create a random stream to generate a random mask of 0 and 1
             # activations.
-            seed = self._dropout_seed_srng.randint(0, sys.maxint)
+            seed = self._dropout_seed_srng.randint(0, 999999)
             srng = theano.tensor.shared_randomstreams.RandomStreams(seed)
             # p=1-p because 1's indicate keep and p is prob of dropping
             self.mask = srng.binomial(n=1, p=1.0 - dropout_rate, size=lin_output.shape)
@@ -215,6 +219,10 @@ class HiddenLayer(object):
 
         else:
             self.output = lin_output
+
+        # L1 and L2 regularisation
+        self.L1 = self.W.sum()
+        self.L2 = (self.W ** 2).sum()
 
         # parameters of the model
         self.params = [self.W, self.b]
@@ -285,6 +293,10 @@ class LogisticRegression(object):
         # symbolic description of how to compute prediction as class whose
         # probability is maximal
         self.y_pred = tensor.argmax(self.p_y_given_x, axis=1)
+
+        # L1 and L2 regularisation
+        self.L1 = self.W.sum()
+        self.L2 = (self.W ** 2).sum()
 
         # parameters of the model
         self.params = [self.W, self.b]
@@ -422,8 +434,8 @@ def build_convnet(kernel_position_product=30000,
                     hidden_layer_activation='relu',
                     n_output_dim=7,
                     squared_filter_length_limit = 15.0,
-                    mom_params={"start": 0.5,
-                                "end": 0.99,
+                    mom_params={"start": 0.0,
+                                "end": 0.0,
                                 "interval": 500},
                     dropout=True,
                     input_dropout=0.2,
@@ -431,18 +443,20 @@ def build_convnet(kernel_position_product=30000,
                     hidden_dropout=0.5,
                     use_bias=True,
                     random_seed=1234,
-                    initial_learning_rate=0.1,
+                    initial_learning_rate=10,
                     learning_rate_decay=0.98,
-                    n_epochs=100,
+                    n_epochs=200,
                     patience=10000,
                     patience_increase=2,
                     improvement_threshold=0.995,
-                    batch_size=30,
+                    batch_size=20,
                     filter_size = (3, 3),
                     pool_size = (2, 2),
-                    n_convpool_layers = 2,
-                    n_hidden_layers = 3,
+                    n_convpool_layers = 3,
+                    n_hidden_layers = 2,
                     n_hidden_units = 1024,
+                    L1_reg = 0.00,
+                    L2_reg = 0.02,
                     training_data=None,
                     validation_data=None,
                     test_data=None,
@@ -459,6 +473,7 @@ def build_convnet(kernel_position_product=30000,
     print 'Momentum parameters: ', mom_params
     print 'Dropout enabled?: ', dropout
     print 'Dropout rates: ', 'input', input_dropout, 'convpool dropout', convpool_dropout, 'hidden dropout', hidden_dropout
+    print 'Rgeularisation coefficients: ', 'L1', L1_reg, 'L2', L2_reg
 
     if dropout:
         # construct the dropout rate list
@@ -533,6 +548,9 @@ def build_convnet(kernel_position_product=30000,
     pixel_positions = (input_size[0] - filter_size[0] + 1)**2
     nkerns_current = int(kernel_position_product / pixel_positions)
 
+    #TODO: hack
+    nkerns_current = 30
+
     nkerns_list.append(nkerns_current)
 
     # Reshape matrix of rasterized images of shape (batch_size, image_dim * image_dim)
@@ -561,8 +579,12 @@ def build_convnet(kernel_position_product=30000,
     nkerns_previous = nkerns_current
     nkerns_current = int(kernel_position_product / pixel_positions)
 
+    #TODO: hack
+    nkerns_current = 50
+
+
     # Construct the next convolutional pooling layers
-    for layer_counter in range(1, n_convpool_layers):
+    for layer_counter in range(1, n_convpool_layers+1):
         next_layer_input = conv_pool_layers[layer_counter-1].output
         image_shape=(batch_size, nkerns_previous, input_size[0], input_size[1])
         filter_shape=(nkerns_current, nkerns_previous, filter_size[0], filter_size[1])
@@ -586,7 +608,13 @@ def build_convnet(kernel_position_product=30000,
 
         pixel_positions = (input_size[0] - filter_size[0] + 1)**2
         nkerns_previous = nkerns_current
-        nkerns_current = int(kernel_position_product / pixel_positions)
+        try:
+            nkerns_current = int(kernel_position_product / pixel_positions)
+        except ZeroDivisionError:
+            pass
+
+        n_kerns_current = 50
+        print n_kerns_current
 
     nkerns = nkerns_previous
 
@@ -599,7 +627,7 @@ def build_convnet(kernel_position_product=30000,
     hidden_layer_sizes.extend([n_hidden_units for i in range(n_hidden_layers)])
     hidden_layer_weight_matrix_sizes = zip(hidden_layer_sizes, hidden_layer_sizes[1:])
 
-    hidden_layers = []
+    idden_layers = []
 
     next_layer_input = conv_pool_layers[-1].output.flatten(2)
 
@@ -622,6 +650,8 @@ def build_convnet(kernel_position_product=30000,
 
     # the cost we minimize during training is the NLL of the model
     cost = output_layer.negative_log_likelihood(y)
+    for layer in conv_pool_layers + hidden_layers + [output_layer]:
+        cost += L1_reg * layer.L1 + L2_reg * layer.L2
 
     # create functions to give predictions
     training_predictions = theano.function(
@@ -830,6 +860,7 @@ def build_convnet(kernel_position_product=30000,
                             test_pred = list(itertools.chain.from_iterable(test_pred))
                             test_pred = list(itertools.chain.from_iterable(test_pred))
                             # twice to flatten entirely!
+                            test_pred = np.asarray(test_pred)
 
 #                                shape = layer.W.get_value(borrow=True).shape
 #                                image = layer.W.get_value(borrow=True).reshape(shape[0], shape[2]*shape[3])
