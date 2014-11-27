@@ -7,7 +7,7 @@ import time
 import itertools
 import numpy as np
 import operator
-from PIL import Image
+#from PIL import Image
 from collections import OrderedDict
 
 import theano
@@ -831,13 +831,6 @@ def build_convnet(kernel_position_product=30000,
                             test_pred = list(itertools.chain.from_iterable(test_pred))
                             # twice to flatten entirely!
 
-                            print 'Wrote test predictions to predictions.csv.'
-                            util.write_results(test_pred+1, 'predictions.csv')
-
-                            print 'Created filter images in ./images/.\n'
-                            for i, layer in enumerate(conv_pool_layers):
-                                filter_image(layer, i, epoch_counter, iter)
-
 #                                shape = layer.W.get_value(borrow=True).shape
 #                                image = layer.W.get_value(borrow=True).reshape(shape[0], shape[2]*shape[3])
 #
@@ -874,7 +867,7 @@ def build_convnet(kernel_position_product=30000,
 
 
 if __name__ == '__main__':
-    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True, zero_index=True)
+    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True)
     #labeled_training -= np.mean(labeled_training)
     assert labeled_training.shape == (2925, 1024)
 

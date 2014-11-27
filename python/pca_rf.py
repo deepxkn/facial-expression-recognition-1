@@ -6,9 +6,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn import cross_validation
 
 def main():
-    N_TREE = 101
-    k = 100
-    rfc = RandomForestClassifier(n_estimators=N_TREE, max_depth=2)
+    N_TREE = 1001
+    k = 200 
+    rfc = RandomForestClassifier(n_estimators=N_TREE, criterion='entropy', max_features="auto")
+    RandomForestClassifier
     proj_test, labels = load_pca_proj(K=k)
     shuffle_in_unison(proj_test, labels)
     scores = cross_validation.cross_val_score(rfc, proj_test, labels, cv=10)
