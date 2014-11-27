@@ -1,11 +1,5 @@
-!obj:pylearn2.cross_validation.TrainCV {
-    dataset_iterator:
-        !obj:pylearn2.cross_validation.dataset_iterators.DatasetKFold {
-            dataset:
-                &train !pkl: "preprocessed_labeled_training_for_pylearn2.pkl",
-            n_folds: 8,
-            shuffle: False
-        },
+!obj:pylearn2.train.Train {
+    dataset: &train !pkl: "preprocessed_labeled_training_for_pylearn2_fold_0.pkl",
     model: !obj:pylearn2.models.mlp.MLP {
         batch_size: %(batch_size)i,
         input_space: !obj:pylearn2.space.Conv2DSpace {
@@ -14,31 +8,30 @@
         },
         layers: [ !obj:pylearn2.models.mlp.ConvRectifiedLinear {
                  layer_name: 'conv1',
-                 output_channels: %(output_channels_conv1)i,
-                 irange: .05,
-                 kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 output_channels: 32,
+                 irange: 0.05,
+                 kernel_shape: [3, 3],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.ConvRectifiedLinear {
                  layer_name: 'conv2',
-                 output_channels: %(output_channels_conv2)i,
-                 irange: .05,
-                 kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 output_channels: 64,
+                 irange: 0.05,
+                 kernel_shape: [3, 3],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
                  layer_name: 'h1',
-                 dim: 500,
-                 irange: 0.0575059125935,
+                 dim: 512,
+                 irange: 1.,
                  # Rather than using weight decay, we constrain the norms of the weight vectors
                  max_col_norm: 1.
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
                  layer_name: 'h2',
-                 dim: 500,
-                 irange: 0.00891030471479,
-                 # Rather than using weight decay, we constrain the norms of the weight vectors
+                 dim: 1024,
+                 irange: 1.,
                  max_col_norm: 1.
              }, !obj:pylearn2.models.mlp.Softmax {
                  max_col_norm: 1.9365,
@@ -52,9 +45,14 @@
         batch_size: %(batch_size)i,
         train_iteration_mode: 'even_shuffled_sequential',
         monitor_iteration_mode: 'even_sequential',
-        learning_rate: .08,
+        learning_rate: 1,
         learning_rule: !obj:pylearn2.training_algorithms.learning_rule.Momentum {
             init_momentum: .5
+        },
+        monitoring_dataset:
+        {
+            'train' : *train,
+            'valid' : !pkl: "preprocessed_labeled_validation_for_pylearn2_fold_0.pkl",
         },
         cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
             input_include_probs: { 
@@ -65,10 +63,10 @@
                 'y' : 1. 
             },
             input_scales: {
-                'conv1' : .8,
-                'conv2' : 0.75,
-                'h1' : .5,
-                'h2' : .5,
+                'conv1' : 1.25,
+                'conv2' : 1.33,
+                'h1' : 2.,
+                'h2' : 2.,
                 'y' : 1.
             },
         },
@@ -78,7 +76,7 @@
                     max_epochs: %(max_epochs)i
                 },
                 !obj:pylearn2.termination_criteria.MonitorBased {
-                    channel_name: "test_y_misclass",
+                    channel_name: "valid_y_misclass",
                     prop_decrease: 0.,
                     N: 100
                 }
@@ -96,13 +94,6 @@
             saturate: 868,
             decay_factor: 0.020379
         }
-    ],
-    # We save the model whenever we improve on the validation set classification error
-    cv_extensions: [
-        !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
-            channel_name: 'test_y_misclass',
-            save_path: "best_convnet_params.pkl"
-        },
     ],
 }
 
