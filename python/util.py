@@ -4,7 +4,7 @@ from scipy import misc
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-#from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA
 
 
 """
@@ -31,7 +31,7 @@ def load_pca_proj(K=30):
     train_images = load_unlabeled_training(flatten=True)
     test_images = standardize(test_images)
     train_images = standardize(train_images)
-    pca = PCA(n_components=K).fit(test_images)
+    pca = PCA(n_components=K).fit(train_images)
     proj_test = pca.transform(test_images)
     shuffle_in_unison(proj_test, labels)
     return proj_test, labels
@@ -39,9 +39,8 @@ def load_pca_proj(K=30):
 def load_pca_test(K=30):
     test_images = load_public_test(flatten=True)
     train_images = load_unlabeled_training(flatten=True)
-    zca = ZCA().fit(train_images)
-    test_images = zca.transform(test_images)
-    train_images = zca.transform(train_images)
+    test_images = standardize(test_images) 
+    train_images = standardize(train_images)
     pca = PCA(n_components=K).fit(train_images)
     proj_test = pca.transform(test_images)
     return proj_test
