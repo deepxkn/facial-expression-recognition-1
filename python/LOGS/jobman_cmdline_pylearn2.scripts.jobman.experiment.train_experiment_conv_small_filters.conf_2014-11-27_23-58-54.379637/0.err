@@ -1,0 +1,6 @@
+/h/118/eringrant/pylearn2/pylearn2/train.py:85: UserWarning: dataset has no yaml src, model won't know what data it was trained on
+  "data it was trained on")
+/u/eringrant/.local/lib/python2.7/site-packages/theano/sandbox/rng_mrg.py:768: UserWarning: MRG_RandomStreams Can't determine #streams from size (Shape.0), guessing 60*256
+  nstreams = self.n_streams(size)
+/h/118/eringrant/pylearn2/pylearn2/monitor.py:573: UserWarning: Trained model saved without indicating yaml_src
+  'indicating yaml_src')
