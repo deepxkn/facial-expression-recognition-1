@@ -74,3 +74,4 @@ chooser.GPEIOptChooser.pkl
 chooser.GPEIOptChooser_hyperparameters.txt
 *.lock
 images
+jobman*
