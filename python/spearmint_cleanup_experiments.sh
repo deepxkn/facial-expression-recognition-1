@@ -1,1 +1,0 @@
-~/spearmint/bin/cleanup .
