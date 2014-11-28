@@ -39,7 +39,7 @@ def load_pca_proj(K=30):
 def load_pca_test(K=30):
     test_images = load_public_test(flatten=True)
     train_images = load_unlabeled_training(flatten=True)
-    test_images = standardize(test_images) 
+    test_images = standardize(test_images)
     train_images = standardize(train_images)
     pca = PCA(n_components=K).fit(train_images)
     proj_test = pca.transform(test_images)
@@ -73,6 +73,32 @@ def standardize(images):
         for j in range(len(images[i])):
             images[i][j] /= sd[i]
     return images
+
+def log_uniform(low, high):
+    """
+    Generates a number that's uniformly distributed in the log-space between
+    `low` and `high`
+
+    Parameters
+    ----------
+    low : float
+    Lower bound of the randomly generated number
+    high : float
+    Upper bound of the randomly generated number
+
+    Returns
+    -------
+    rval : float
+    Random number uniformly distributed in the log-space specified by `low`
+    and `high`
+    """
+    log_low = np.log(low)
+    log_high = np.log(high)
+
+    log_rval = np.random.uniform(log_low, log_high)
+    rval = float(np.exp(log_rval))
+
+    return rval
 
 def load_labeled_training(flatten=False, zero_index=False):
     labeled = scipy.io.loadmat('../labeled_images.mat')

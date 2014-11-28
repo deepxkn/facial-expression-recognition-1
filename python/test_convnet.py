@@ -14,7 +14,6 @@ This should make the test run in about one minute.
 
 import os
 
-from pylearn2.testing import skip
 from pylearn2.testing import no_debug_mode
 from pylearn2.config import yaml_parse
 #from pylearn2.scripts.jobman.experiment import train_experiment
@@ -24,14 +23,19 @@ from pylearn2.config import yaml_parse
 def results_extractor(train_obj):
     channels = train_obj.model.monitor.channels
     test_y_misclass = channels['test_y_misclass'].val_record[-1]
+    train_y_misclass = channels['train_y_misclass'].val_record[-1]
+    train_y_nll = channels['train_y_nll'].val_record[-1]
+    test_y_nll = channels['test_y_nll'].val_record[-1]
 
-    return DD(test_y_misclass=test_y_misclass)
+    return DD(
+        test_y_misclass=test_y_misclass,
+        train_y_misclass=train_y_misclass,
+        train_y_nll=train_y_nll,
+        test_y_nll=test_y_nll
+    )
 
 def test_convolutional_network():
-
-    skip.skip_if_no_data()
-
-    yaml = open("conv.yaml", 'r').read()
+    yaml = open("conv_small_filters.yaml", 'r').read()
 
     hyper_params = {
                     'learning_rate': 0.1,
