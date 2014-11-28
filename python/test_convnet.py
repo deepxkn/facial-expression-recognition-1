@@ -35,7 +35,7 @@ def results_extractor(train_obj):
     )
 
 def test_convolutional_network():
-    yaml = open("conv_small_filters.yaml", 'r').read()
+    yaml = open("conv_reproduce_results.yaml", 'r').read()
 
     hyper_params = {
                     'learning_rate': 0.2,
