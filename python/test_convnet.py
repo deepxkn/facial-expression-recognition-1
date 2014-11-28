@@ -13,29 +13,36 @@ This should make the test run in about one minute.
 """
 
 import os
+
 from pylearn2.testing import skip
 from pylearn2.testing import no_debug_mode
 from pylearn2.config import yaml_parse
+#from pylearn2.scripts.jobman.experiment import train_experiment
 
+#from jobman.tools import DD
+
+def results_extractor(train_obj):
+    channels = train_obj.model.monitor.channels
+    test_y_misclass = channels['test_y_misclass'].val_record[-1]
+
+    return DD(test_y_misclass=test_y_misclass)
 
 def test_convolutional_network():
 
     skip.skip_if_no_data()
-    #yaml_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    save_path = os.path.dirname(os.path.realpath(__file__))
 
-    #yaml = open("{0}/conv.yaml".format(yaml_file_path), 'r').read()
     yaml = open("conv.yaml", 'r').read()
-    #yaml = open("cifar10_old_small.yaml", 'r').read()
 
-    hyper_params = {'train_stop': 50,
-                    'valid_stop': 50050,
-                    'test_stop': 50,
+    hyper_params = {
+                    'learning_rate': 0.1,
                     'batch_size': 100,
                     'output_channels_conv1': 30,
                     'output_channels_conv2': 50,
+                    'output_channels_conv3': 100,
                     'max_epochs': 100,
-                    'save_path': save_path}
+                    'num_hiddens_h1' : 50,
+                    'num_hiddens_h2' : 100,
+                    }
     yaml = yaml % (hyper_params)
     train = yaml_parse.load(yaml)
     train.main_loop()
