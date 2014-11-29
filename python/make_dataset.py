@@ -47,9 +47,9 @@ if __name__ == "__main__":
     unlabeled_training /= unlabeled_training.std() # normalise the data
 
     print type(unlabeled_training)
-    code = DictionaryLearning(n_components=100)
+    code = DictionaryLearning(n_components=100, max_iter=100)
     code.fit(unlabeled_training)
-    code.transform(train_data)
+    new = code.transform(train_data[:20])
     util.render_matrix(train_data[:20], flattened=True)
 
     # create the spike-and-slab encoding dictionary

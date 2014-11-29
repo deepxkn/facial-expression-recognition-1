@@ -15,7 +15,7 @@
                             use_std: 1,
                             #sqrt_bias: 10,
                         },
-                            !pkl: "zca_fit_with_unlabeled_training.pkl"
+                            #!pkl: "zca_fit_with_unlabeled_training.pkl"
                     ]
                 },
             },
@@ -78,7 +78,7 @@
         monitor_iteration_mode: 'even_sequential',
         learning_rate: %(learning_rate)f,
         learning_rule: !obj:pylearn2.training_algorithms.learning_rule.Momentum {
-            init_momentum: .5
+            init_momentum: %(init_momentum)f
         },
         cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
             input_include_probs: { 
