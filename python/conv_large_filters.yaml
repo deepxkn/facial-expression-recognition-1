@@ -15,7 +15,7 @@
                             use_std: 1,
                             #sqrt_bias: 10,
                         },
-                            #!pkl: "zca_fit_with_unlabeled_training.pkl"
+                            !pkl: "zca_fit_with_unlabeled_training.pkl"
                     ]
                 },
             },
@@ -33,7 +33,7 @@
                  output_channels: %(output_channels_conv1)i,
                  irange: .05,
                  kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.ConvRectifiedLinear {
@@ -41,7 +41,15 @@
                  output_channels: %(output_channels_conv2)i,
                  irange: .05,
                  kernel_shape: [4, 4],
-                 pool_shape: [4, 4],
+                 pool_shape: [2, 2],
+                 pool_stride: [2, 2],
+                 max_kernel_norm: 1.9365
+             }, !obj:pylearn2.models.mlp.ConvRectifiedLinear {
+                 layer_name: 'conv3',
+                 output_channels: %(output_channels_conv3)i,
+                 irange: .05,
+                 kernel_shape: [4, 4],
+                 pool_shape: [2, 2],
                  pool_stride: [2, 2],
                  max_kernel_norm: 1.9365
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
@@ -75,14 +83,16 @@
         cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
             input_include_probs: { 
                 'conv1' : .8,
-                'conv2' : 0.75,
+                'conv2' : 1.,
+                'conv3' : 1.,
                 'h1' : .5,
                 'h2' : .5,
                 'y' : 1. 
             },
             input_scales: {
                 'conv1' : 1.25,
-                'conv2' : 1.33,
+                'conv2' : 1,
+                'conv3' : 1,
                 'h1' : 2.,
                 'h2' : 2.,
                 'y' : 1.
@@ -95,8 +105,8 @@
                 },
                 !obj:pylearn2.termination_criteria.MonitorBased {
                     channel_name: "test_y_misclass",
-                    prop_decrease: 0.,
-                    N: 100
+                    prop_decrease: 0.02,
+                    N: 10
                 }
             ]
         },
@@ -117,7 +127,7 @@
     cv_extensions: [
         !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
             channel_name: 'test_y_misclass',
-            save_path: "stratified_crossval_best_convnet_models_large_filters.pkl"
+            save_path: "stratified_crossval_best_convnet_models_large_filters_with_zca.pkl"
         },
     ],
 }
