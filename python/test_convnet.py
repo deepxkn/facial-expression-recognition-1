@@ -35,17 +35,17 @@ def results_extractor(train_obj):
     )
 
 def test_convolutional_network():
-    yaml = open("conv_reproduce_results.yaml", 'r').read()
+    yaml = open("conv_large_filters.yaml", 'r').read()
 
     hyper_params = {
                     'learning_rate': 0.2,
                     'batch_size': 40,
-                    'output_channels_conv1': 70,
-                    'output_channels_conv2': 80,
-                    'output_channels_conv3': 60,
+                    'output_channels_conv1': 20,
+                    'output_channels_conv2': 50,
+                    'output_channels_conv3': 80,
                     'max_epochs': 100,
-                    'num_hiddens_h1' : 730,
-                    'num_hiddens_h2' : 950,
+                    'num_hiddens_h1' : 256,
+                    'num_hiddens_h2' : 256,
                     }
     yaml = yaml % (hyper_params)
     train = yaml_parse.load(yaml)
