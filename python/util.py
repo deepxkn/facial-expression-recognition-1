@@ -176,7 +176,7 @@ def render_matrix(matrix, flattened=False, image_height=None,
         for i in xrange(matrix.shape[0]):
             image = matrix[i, :]
             image = image.reshape(image_height, image_width)
-            axs[i].imshow(image, cmap = cm.Greys_r,
+            axs[i].imshow(image, cmap = plt.get_cmap('gray'),
                 interpolation='none') # for no anti-aliasing
             axs[i].axis('off')
     else:

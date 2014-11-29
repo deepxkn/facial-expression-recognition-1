@@ -12,18 +12,27 @@ from pylearn2.utils import serial
 from pylearn2.datasets.dense_design_matrix import DenseDesignMatrix, DefaultViewConverter
 from pylearn2.datasets import preprocessing
 from pylearn2.format.target_format import convert_to_one_hot
+from pylearn2.models.s3c import S3C
+from pylearn2.models.s3c import Grad_M_Step
 
+from sklearn.decomposition import MiniBatchDictionaryLearning
+from sklearn.decomposition import DictionaryLearning
+from sklearn.feature_extraction.image import extract_patches_2d
+from sklearn.feature_extraction.image import reconstruct_from_patches_2d
+
+import pylab as plt
 import cPickle as pickle
+import numpy as np
 
 import util
 
 if __name__ == "__main__":
+    # load the test data
     test_images = util.load_public_test(flatten=True)
 
-    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True, zero_index=True)
-
-    train_data = labeled_training
-    train_labels = labeled_training_labels
+    # load the training data
+    train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
+    unlabeled_training = util.load_unlabeled_training(flatten=True)
 
     #print train_labels[:20]
     #util.render_matrix(train_data[:20], flattened=True)
@@ -31,9 +40,46 @@ if __name__ == "__main__":
     # convert the training labels into one-hot format, as required by the pylearn2 model
     train_labels = convert_to_one_hot(train_labels, dtype='int64', max_labels=7, mode='stack')
 
+    # preprocessing
+
+    # gcn
+    unlabeled_training -= unlabeled_training.mean(axis=0) # globally centralise the data
+    unlabeled_training /= unlabeled_training.std() # normalise the data
+
+    print type(unlabeled_training)
+    code = DictionaryLearning(n_components=100)
+    code.fit(unlabeled_training)
+    code.transform(train_data)
+    util.render_matrix(train_data[:20], flattened=True)
+
+    # create the spike-and-slab encoding dictionary
+    #unlabeled_training = DenseDesignMatrix(X=unlabeled_training)
+    #m, D = unlabeled_training.X.shape # number of visible units
+    #N = 300 # number of hidden units
+
+    #s3c = S3C(nvis = D,
+    #    nhid = N,
+    #    irange = .1,
+    #    init_bias_hid = 0.,
+    #    init_B = 3.,
+    #    min_B = 1e-8,
+    #    max_B = 1000.,
+    #    init_alpha = 1., min_alpha = 1e-8, max_alpha = 1000.,
+    #    init_mu = 1., e_step = None,
+    #    m_step = Grad_M_Step(),
+    #    min_bias_hid = -1e30, max_bias_hid = 1e30,
+    #)
+
+    #s3c.make_pseudoparams()
+    #s3c.learn(unlabeled_training, m)
+
+    # sparse coding
+
+    # pickle the data
     serial.save('training_data_for_pylearn2.pkl', train_data)
     serial.save('training_labels_for_pylearn2.pkl', train_labels)
 
+    # test that pickling works
     with open('training_data_for_pylearn2.pkl') as d:
         data_check = pickle.load(d)
     with open('training_labels_for_pylearn2.pkl') as l:

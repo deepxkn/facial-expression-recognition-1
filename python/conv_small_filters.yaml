@@ -77,7 +77,8 @@
         train_iteration_mode: 'even_shuffled_sequential',
         monitor_iteration_mode: 'even_sequential',
         learning_rate: %(learning_rate)f,
-        learning_rule: !obj:pylearn2.training_algorithms.learning_rule.AdaDelta {
+        learning_rule: !obj:pylearn2.training_algorithms.learning_rule.Momentum {
+             init_momentum: .5
         },
         cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
             input_include_probs: { 
@@ -111,6 +112,11 @@
         },
     },
     extensions: [
+        !obj:pylearn2.training_algorithms.learning_rule.MomentumAdjustor {
+            start: 1,
+            saturate: 500,
+            final_momentum: 0.99
+        },
         !obj:pylearn2.training_algorithms.sgd.LinearDecayOverEpoch {
             start: 1,
             saturate: 868,
