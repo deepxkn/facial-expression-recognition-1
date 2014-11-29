@@ -19,7 +19,7 @@
                     ]
                 },
             },
-            n_folds: 10,
+            n_folds: 7,
             shuffle: False
         },
     model: !obj:pylearn2.models.mlp.MLP {
@@ -83,16 +83,16 @@
         cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
             input_include_probs: { 
                 'conv1' : .8,
-                'conv2' : 1.,
-                'conv3' : 1.,
+                'conv2' : 0.75,
+                'conv3' : 0.75,
                 'h1' : .5,
                 'h2' : .5,
                 'y' : 1. 
             },
             input_scales: {
                 'conv1' : 1.25,
-                'conv2' : 1.,
-                'conv3' : 1.,
+                'conv2' : 1.33,
+                'conv3' : 1.33,
                 'h1' : 2.,
                 'h2' : 2.,
                 'y' : 1.
@@ -120,7 +120,7 @@
         !obj:pylearn2.training_algorithms.sgd.LinearDecayOverEpoch {
             start: 1,
             saturate: 868,
-            decay_factor: 0.020379
+            decay_factor: 0.05
         }
     ],
     # We save the model whenever we improve on the validation set classification error
