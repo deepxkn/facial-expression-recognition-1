@@ -58,12 +58,12 @@
                  irange: 0.0575059125935,
                  # Rather than using weight decay, we constrain the norms of the weight vectors
                  max_col_norm: 1.
-             }, !obj:pylearn2.models.mlp.RectifiedLinear {
-                 layer_name: 'h2',
-                 dim: %(num_hiddens_h2)i,
-                 irange: 0.00891030471479,
+                     #}, !obj:pylearn2.models.mlp.RectifiedLinear {
+                     #layer_name: 'h2',
+                     #dim: %(num_hiddens_h2)i,
+                     #irange: 0.00891030471479,
                  # Rather than using weight decay, we constrain the norms of the weight vectors
-                 max_col_norm: 1.
+                 #max_col_norm: 1.
              }, !obj:pylearn2.models.mlp.Softmax {
                  max_col_norm: 1.9365,
                  layer_name: 'y',
@@ -86,7 +86,7 @@
                 'conv2' : 0.75,
                 'conv3' : 0.75,
                 'h1' : .5,
-                'h2' : .5,
+                #'h2' : .5,
                 'y' : 1. 
             },
             input_scales: {
@@ -94,7 +94,7 @@
                 'conv2' : 1.33,
                 'conv3' : 1.33,
                 'h1' : 2.,
-                'h2' : 2.,
+                #'h2' : 2.,
                 'y' : 1.
             },
         },

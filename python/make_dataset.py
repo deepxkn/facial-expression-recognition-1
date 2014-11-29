@@ -27,30 +27,46 @@ import numpy as np
 import util
 
 if __name__ == "__main__":
-    # load the test data
-    test_images = util.load_public_test(flatten=True)
-
     # load the training data
     train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
     unlabeled_training = util.load_unlabeled_training(flatten=True)
 
-    #print train_labels[:20]
-    #util.render_matrix(train_data[:20], flattened=True)
+    # load the test data
+    test_images = util.load_public_test(flatten=True)
+    # preprocess the test data as is done to the training data in the yaml file
+    test_images = util.standardize(test_images)
 
     # convert the training labels into one-hot format, as required by the pylearn2 model
     train_labels = convert_to_one_hot(train_labels, dtype='int64', max_labels=7, mode='stack')
 
-    # preprocessing
+    ###########################################################################
+    # pickling preprocessed unlabeled data
+    # don't modify this without modifying the retraining a new model with the new data
 
-    # gcn
-    unlabeled_training -= unlabeled_training.mean(axis=0) # globally centralise the data
-    unlabeled_training /= unlabeled_training.std() # normalise the data
+    #unlabeled_training -= unlabeled_training.mean(axis=1) # centralise the data
+    #unlabeled_training /= numpy.sqrt(unlabeled_training.var(axis=1, ddof=1)) # normalise the data
 
+    #nolabelmatrix =  DenseDesignMatrix(X=unlabeled_training)
+    #zca = ZCA()
+    #zca.fit(nolabelmatrix)
+
+<<<<<<< HEAD
     print type(unlabeled_training)
     code = DictionaryLearning(n_components=100, max_iter=100)
     code.fit(unlabeled_training)
     new = code.transform(train_data[:20])
     util.render_matrix(train_data[:20], flattened=True)
+=======
+    #serial.save('zca_fit_with_unlabeled_training.pkl', zca)
+    ###########################################################################
+
+    # dictionary learning
+    #print type(unlabeled_training)
+    #code = DictionaryLearning(n_components=100)
+    #code.fit(unlabeled_training)
+    #code.transform(train_data)
+    #util.render_matrix(train_data[:20], flattened=True)
+>>>>>>> d57ef3b813fb9ea300e6bdf5e80244a15df0cfad
 
     # create the spike-and-slab encoding dictionary
     #unlabeled_training = DenseDesignMatrix(X=unlabeled_training)
@@ -73,17 +89,18 @@ if __name__ == "__main__":
     #s3c.make_pseudoparams()
     #s3c.learn(unlabeled_training, m)
 
-    # sparse coding
-
     # pickle the data
     serial.save('training_data_for_pylearn2.pkl', train_data)
     serial.save('training_labels_for_pylearn2.pkl', train_labels)
+    serial.save('preprocessed_test_for_pylearn2.pkl', test_images)
 
     # test that pickling works
     with open('training_data_for_pylearn2.pkl') as d:
         data_check = pickle.load(d)
     with open('training_labels_for_pylearn2.pkl') as l:
         labels_check = pickle.load(l)
+    with open('preprocessed_test_for_pylearn2.pkl') as t:
+        test_check = pickle.load(t)
 
     # check y's
     for index in range(len(labels_check)):
@@ -95,3 +112,7 @@ if __name__ == "__main__":
         for inner_index in range(len(data_check[index])):
             assert data_check[index, inner_index] == train_data[index, inner_index]
 
+    # check test
+    for index in range(len(test_check)):
+        for inner_index in range(len(test_check[index])):
+            assert test_check[index, inner_index] == test_images[index, inner_index]
