@@ -77,8 +77,8 @@
                 },
                 !obj:pylearn2.termination_criteria.MonitorBased {
                     channel_name: "test_y_misclass",
-                    prop_decrease: 0.,
-                    N: 100
+                    prop_decrease: 0.02,
+                    N: 10
                 }
             ]
         },
