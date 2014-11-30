@@ -35,10 +35,10 @@ def results_extractor(train_obj):
     )
 
 def test_convolutional_network():
-    yaml = open("conv_small_filters.yaml", 'r').read()
+    yaml = open("conv_small_filters_shuffled.yaml", 'r').read()
 
     hyper_params = {
-                    'learning_rate': 0.1,
+                    'learning_rate': 0.5,
                     'batch_size': 20,
                     'output_channels_conv1': 30,
                     'output_channels_conv2': 50,
