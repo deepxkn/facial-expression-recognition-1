@@ -3,14 +3,14 @@ from time import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from sklearn.decomposition import DictionaryLearning
+from sklearn.decomposition import MiniBatchDictionaryLearning
 from sklearn.feature_extraction.image import extract_patches_2d
 from sklearn.feature_extraction.image import reconstruct_from_patches_2d
 
 import util
 import zca
 
-def get_dictionary_data(n_comp=20):
+def get_dictionary_data(n_comp=20, zero_index=False):
     unlabeled = util.load_unlabeled_training(flatten=False)
     height, width = 32, 32
     n_images = 5000
@@ -44,30 +44,32 @@ def get_dictionary_data(n_comp=20):
     dt = time() - t0
     print('done in %.2fs.' % dt)
 
-    plt.figure(figsize=(4.2, 4))
-    for i, comp in enumerate(V[:100]):
-        plt.subplot(10, 10, i + 1)
-        plt.imshow(comp.reshape(patch_size), cmap=plt.cm.gray_r,
-                   interpolation='nearest')
-        plt.xticks(())
-        plt.yticks(())
-    plt.subplots_adjust(0.08, 0.02, 0.92, 0.85, 0.08, 0.23)
-    plt.show()
+    #plt.figure(figsize=(4.2, 4))
+    #for i, comp in enumerate(V[:100]):
+    #    plt.subplot(10, 10, i + 1)
+    #    plt.imshow(comp.reshape(patch_size), cmap=plt.cm.gray_r,
+    #               interpolation='nearest')
+    #    plt.xticks(())
+    #    plt.yticks(())
+    #plt.subplots_adjust(0.08, 0.02, 0.92, 0.85, 0.08, 0.23)
+    #plt.show()
 
-    labeled_data, labels = util.load_labeled_training(flatten=False)
+    labeled_data, labels = util.load_labeled_training(flatten=False, zero_index=True)
+    labeled_data = labeled_data[:10]
 
     print('Reconstructing the images...')
     t0 = time()
     reconstructed_images = np.empty((0, 32, 32))
 
-    for image in labeled_data:
+    for i, image in enumerate(labeled_data):
+        print i
+
         data = extract_patches_2d(image, patch_size)
         data = data.reshape(data.shape[0], -1)
         data -= np.mean(data, axis=0)
 
         code = dico.transform(data)
         patches = np.dot(code, V)
-        print patches.shape
         z.transform(patches)
         patches = patches.reshape(len(data), *patch_size)
 
@@ -80,9 +82,9 @@ def get_dictionary_data(n_comp=20):
     # flatten
     n, x, y = reconstructed_images.shape
     images = reconstructed_images.reshape(reconstructed_images.shape[0], reconstructed_images.shape[1]*reconstructed_images.shape[2])
-    assert reconstructed_images.shape == (n, x*y)
+    assert images.shape == (n, x*y)
 
-    util.render_matrix(reconstructed_images[:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :], flattened=False)
+    #util.render_matrix(reconstructed_images[:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :][:20, :, :], flattened=False)
 
     return (reconstructed_images, labels)
 
