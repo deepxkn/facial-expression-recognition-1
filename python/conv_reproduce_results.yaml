@@ -1,0 +1,107 @@
+!obj:pylearn2.cross_validation.TrainCV {
+    dataset_iterator:
+        !obj:pylearn2.cross_validation.dataset_iterators.StratifiedDatasetKFold {
+            dataset: !obj:pylearn2.datasets.dense_design_matrix.DenseDesignMatrix &dataset {
+                "X": !pkl: "training_data_for_pylearn2.pkl",
+                "y": !pkl: "training_labels_for_pylearn2.pkl",
+                "view_converter": !obj:pylearn2.datasets.dense_design_matrix.DefaultViewConverter {
+                    shape: [32, 32, 1],
+                    axes: ['b', 0, 1, 'c'],
+                },
+                "preprocessor": !obj:pylearn2.datasets.preprocessing.Pipeline {
+                    items: [
+                        !obj:pylearn2.datasets.preprocessing.GlobalContrastNormalization {
+                            subtract_mean: 1,
+                            use_std: 1,
+                            #sqrt_bias: 10,
+                        },
+                            #!pkl: "zca_fit_with_unlabeled_training.pkl"
+                    ]
+                },
+            },
+            n_folds: 10,
+            shuffle: False
+        },
+    model: !obj:pylearn2.models.mlp.MLP {
+        batch_size: %(batch_size)i,
+        input_space: !obj:pylearn2.space.Conv2DSpace {
+            shape: [32, 32],
+            num_channels: 1
+        },
+        layers: [ !obj:pylearn2.models.mlp.ConvRectifiedLinear {
+                 layer_name: 'conv1',
+                 output_channels: 30,
+                 irange: .05,
+                 kernel_shape: [3, 3],
+                 pool_shape: [2, 2],
+                 pool_stride: [2, 2],
+                 max_kernel_norm: 1.9365
+             }, !obj:pylearn2.models.mlp.RectifiedLinear {
+                 layer_name: 'h1',
+                 dim: 100,
+                 irange: 0.0575059125935,
+                 # Rather than using weight decay, we constrain the norms of the weight vectors
+                 max_col_norm: 1.
+             }, !obj:pylearn2.models.mlp.Softmax {
+                 max_col_norm: 1.9365,
+                 layer_name: 'y',
+                 n_classes: 7,
+                 istdev: .05
+            }
+        ],
+    },
+    algorithm: !obj:pylearn2.training_algorithms.sgd.SGD {
+        batch_size: %(batch_size)i,
+        train_iteration_mode: 'even_shuffled_sequential',
+        monitor_iteration_mode: 'even_sequential',
+        learning_rate: %(learning_rate)f,
+        learning_rule: !obj:pylearn2.training_algorithms.learning_rule.Momentum {
+            init_momentum: .5
+        },
+        cost: !obj:pylearn2.costs.mlp.dropout.Dropout {
+            input_include_probs: { 
+                'conv1' : .8,
+                'h1' : .5,
+                'y' : 1. 
+            },
+            input_scales: {
+                'conv1' : 1.25,
+                'h1' : 2.,
+                'y' : 1.
+            },
+        },
+        termination_criterion: !obj:pylearn2.termination_criteria.And {
+            criteria: [
+                !obj:pylearn2.termination_criteria.EpochCounter {
+                    max_epochs: 100
+                },
+                !obj:pylearn2.termination_criteria.MonitorBased {
+                    channel_name: "test_y_misclass",
+                    prop_decrease: 0.02,
+                    N: 10
+                }
+            ]
+        },
+    },
+    extensions: [
+        !obj:pylearn2.training_algorithms.learning_rule.MomentumAdjustor {
+            start: 1,
+            saturate: 500,
+            final_momentum: 0.99
+        },
+        !obj:pylearn2.training_algorithms.sgd.LinearDecayOverEpoch {
+            start: 1,
+            saturate: 868,
+            decay_factor: 0.020379
+        }
+    ],
+    # We save the model whenever we improve on the validation set classification error
+    cv_extensions: [
+        !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
+            channel_name: 'test_y_misclass',
+            save_path: "stratified_crossval_best_convnet_models_reproduce_results.pkl"
+        },
+    ],
+}
+
+
