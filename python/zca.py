@@ -4,7 +4,7 @@ from sklearn.utils import array2d, as_float_array
 from sklearn.base import TransformerMixin, BaseEstimator
 
 """
-Code for ZCA comes from 
+Code for ZCA comes from
 https://gist.github.com/duschendestroyer/5170087
 """
 
