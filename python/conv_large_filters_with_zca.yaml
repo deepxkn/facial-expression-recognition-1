@@ -15,7 +15,7 @@
                             use_std: 1,
                             #sqrt_bias: 10,
                         },
-                            #!pkl: "zca_fit_with_unlabeled_training.pkl"
+                            !pkl: "zca_fit_with_unlabeled_training.pkl"
                     ]
                 },
             },

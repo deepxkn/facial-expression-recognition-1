@@ -2,7 +2,7 @@
     dataset_iterator:
         !obj:pylearn2.cross_validation.dataset_iterators.StratifiedDatasetKFold {
             dataset: !obj:pylearn2.datasets.dense_design_matrix.DenseDesignMatrix &dataset {
-                "X": !pkl: "training_data_for_pylearn2.pkl",
+                "X": !pkl: "training_data_100_components_for_pylearn2.pkl",
                 "y": !pkl: "training_labels_for_pylearn2.pkl",
                 "view_converter": !obj:pylearn2.datasets.dense_design_matrix.DefaultViewConverter {
                     shape: [32, 32, 1],

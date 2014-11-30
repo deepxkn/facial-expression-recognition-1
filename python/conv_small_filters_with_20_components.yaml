@@ -2,7 +2,7 @@
     dataset_iterator:
         !obj:pylearn2.cross_validation.dataset_iterators.StratifiedDatasetKFold {
             dataset: !obj:pylearn2.datasets.dense_design_matrix.DenseDesignMatrix &dataset {
-                "X": !pkl: "training_data_for_pylearn2.pkl",
+                "X": !pkl: "training_data_20_components_for_pylearn2.pkl",
                 "y": !pkl: "training_labels_for_pylearn2.pkl",
                 "view_converter": !obj:pylearn2.datasets.dense_design_matrix.DefaultViewConverter {
                     shape: [32, 32, 1],
@@ -28,41 +28,40 @@
             shape: [32, 32],
             num_channels: 1
         },
-        layers: [
-            !obj:pylearn2.models.mlp.ConvElemwise {
+        layers: [ !obj:pylearn2.models.mlp.ConvElemwise {
                  layer_name: 'conv1',
                  output_channels: %(output_channels_conv1)i,
+                 irange: .005,
                  pool_type: 'max',
-                 kernel_shape: [4, 4],
+                 kernel_shape: [3, 3],
                  pool_shape: [2, 2],
                  pool_stride: [2, 2],
-                 irange: .005,
                  max_kernel_norm: 1.9365,
                  nonlinearity: !obj:pylearn2.models.mlp.TanhConvNonlinearity {}
              }, !obj:pylearn2.models.mlp.ConvElemwise {
                  layer_name: 'conv2',
                  output_channels: %(output_channels_conv2)i,
+                 irange: .005,
                  pool_type: 'max',
-                 kernel_shape: [4, 4],
+                 kernel_shape: [3, 3],
                  pool_shape: [2, 2],
                  pool_stride: [2, 2],
-                 irange: .005,
                  max_kernel_norm: 1.9365,
                  nonlinearity: !obj:pylearn2.models.mlp.TanhConvNonlinearity {}
              }, !obj:pylearn2.models.mlp.ConvElemwise {
                  layer_name: 'conv3',
-                 pool_type: 'max',
                  output_channels: %(output_channels_conv3)i,
-                 kernel_shape: [4, 4],
+                 irange: .005,
+                 pool_type: 'max',
+                 kernel_shape: [3, 3],
                  pool_shape: [2, 2],
                  pool_stride: [2, 2],
-                 irange: .005,
                  max_kernel_norm: 1.9365,
                  nonlinearity: !obj:pylearn2.models.mlp.TanhConvNonlinearity {}
              }, !obj:pylearn2.models.mlp.RectifiedLinear {
                  layer_name: 'h1',
                  dim: %(num_hiddens_h1)i,
-                 irange: 0.5,
+                 irange: 0.5, 
                  # Rather than using weight decay, we constrain the norms of the weight vectors
                  max_col_norm: 1.
              }, !obj:pylearn2.models.mlp.Softmax {
@@ -112,9 +111,9 @@
     },
     extensions: [
         !obj:pylearn2.training_algorithms.learning_rule.MomentumAdjustor {
-            start: 1,
-            saturate: 500,
-            final_momentum: 0.99
+        start: 1,
+        saturate: 500,
+        final_momentum: 0.99
         },
         !obj:pylearn2.training_algorithms.sgd.LinearDecayOverEpoch {
             start: 1,
@@ -126,7 +125,7 @@
     cv_extensions: [
         !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
             channel_name: 'test_y_misclass',
-            save_path: "stratified_crossval_best_convnet_models_large_filters.pkl"
+            save_path: "stratified_crossval_best_convnet_models_small_filters.pkl"
         },
     ],
 }
