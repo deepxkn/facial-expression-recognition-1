@@ -32,8 +32,9 @@ if __name__ == "__main__":
     #train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
     #unlabeled_training = util.load_unlabeled_training(flatten=True)
 
-    train_data, train_labels = dictionary_learning.get_dictionary_data(n_comp=20)
+    train_data, train_labels = dictionary_learning.get_dictionary_data(n_comp=20, zero_index=True)
 
+    util.render_matrix(train_data, flattened=True)
     # load the test data
     test_images = util.load_public_test(flatten=True)
     # preprocess the test data as is done to the training data in the yaml file
@@ -53,31 +54,13 @@ if __name__ == "__main__":
     #zca = ZCA()
     #zca.fit(nolabelmatrix)
 
-<<<<<<< HEAD
-    print type(unlabeled_training)
-    code = DictionaryLearning(n_components=100, max_iter=100)
-    code.fit(unlabeled_training)
-    new = code.transform(train_data[:20])
-    util.render_matrix(train_data[:20], flattened=True)
-=======
-    #serial.save('zca_fit_with_unlabeled_training.pkl', zca)
-    ###########################################################################
-
-    # dictionary learning
-    #print type(unlabeled_training)
-    #code = DictionaryLearning(n_components=100)
-    #code.fit(unlabeled_training)
-    #code.transform(train_data)
-    #util.render_matrix(train_data[:20], flattened=True)
->>>>>>> d57ef3b813fb9ea300e6bdf5e80244a15df0cfad
-
     # create the spike-and-slab encoding dictionary
     #unlabeled_training = DenseDesignMatrix(X=unlabeled_training)
     #m, D = unlabeled_training.X.shape # number of visible units
     #N = 300 # number of hidden units
 
     #s3c = S3C(nvis = D,
-    #    nhid = N,
+    #nhid = N,
     #    irange = .1,
     #    init_bias_hid = 0.,
     #    init_B = 3.,
@@ -93,7 +76,7 @@ if __name__ == "__main__":
     #s3c.learn(unlabeled_training, m)
 
     # pickle the data
-    serial.save('training_data_for_pylearn2.pkl', train_data)
+    serial.save('dictionary_training_data_for_pylearn2.pkl', train_data)
     serial.save('training_labels_for_pylearn2.pkl', train_labels)
     serial.save('preprocessed_test_for_pylearn2.pkl', test_images)
 
