@@ -25,11 +25,14 @@ import cPickle as pickle
 import numpy as np
 
 import util
+import dictionary_learning
 
 if __name__ == "__main__":
     # load the training data
-    train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
-    unlabeled_training = util.load_unlabeled_training(flatten=True)
+    #train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
+    #unlabeled_training = util.load_unlabeled_training(flatten=True)
+
+    train_data, train_labels = dictionary_learning.get_dictionary_data(n_comp=20)
 
     # load the test data
     test_images = util.load_public_test(flatten=True)
