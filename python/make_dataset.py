@@ -12,113 +12,102 @@ from pylearn2.utils import serial
 from pylearn2.datasets.dense_design_matrix import DenseDesignMatrix, DefaultViewConverter
 from pylearn2.datasets import preprocessing
 from pylearn2.format.target_format import convert_to_one_hot
+from pylearn2.models.s3c import S3C
+from pylearn2.models.s3c import Grad_M_Step
 
-from sklearn.cross_validation import StratifiedKFold
+from sklearn.decomposition import MiniBatchDictionaryLearning
+from sklearn.decomposition import DictionaryLearning
+from sklearn.feature_extraction.image import extract_patches_2d
+from sklearn.feature_extraction.image import reconstruct_from_patches_2d
 
+import pylab as plt
 import cPickle as pickle
+import numpy as np
 
 import util
+import dictionary_learning
 
 if __name__ == "__main__":
-    n_folds = 4
-
-    view_converter = DefaultViewConverter((32, 32, 1), ('b', 0, 1, 'c'))
+    # load the training data
+    #train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
     #unlabeled_training = util.load_unlabeled_training(flatten=True)
+
+    train_data, train_labels = dictionary_learning.get_dictionary_data(n_comp=20)
+
+    # load the test data
     test_images = util.load_public_test(flatten=True)
-    #unlabeled_training_matrix = DenseDesignMatrix(X=unlabeled_training, view_converter=view_converter)
-    test_matrix = DenseDesignMatrix(X=test_images, view_converter=view_converter)
+    # preprocess the test data as is done to the training data in the yaml file
+    test_images = util.standardize(test_images)
 
-    labeled_training, labeled_training_labels = util.load_labeled_training(flatten=True, zero_index=True)
+    # convert the training labels into one-hot format, as required by the pylearn2 model
+    train_labels = convert_to_one_hot(train_labels, dtype='int64', max_labels=7, mode='stack')
 
-    skf = StratifiedKFold(labeled_training_labels, n_folds)
+    ###########################################################################
+    # pickling preprocessed unlabeled data
+    # don't modify this without modifying the retraining a new model with the new data
 
-    for i, (train_index, valid_index) in enumerate(skf):
-        #print train_index, valid_index
-        train_data = labeled_training[train_index]
-        train_labels = labeled_training_labels[train_index]
+    #unlabeled_training -= unlabeled_training.mean(axis=1) # centralise the data
+    #unlabeled_training /= numpy.sqrt(unlabeled_training.var(axis=1, ddof=1)) # normalise the data
 
-        valid_data = labeled_training[valid_index]
-        valid_labels = labeled_training_labels[valid_index]
+    #nolabelmatrix =  DenseDesignMatrix(X=unlabeled_training)
+    #zca = ZCA()
+    #zca.fit(nolabelmatrix)
 
-        #print train_labels[:20]
-        #util.render_matrix(train_data[:20], flattened=True)
+    #serial.save('zca_fit_with_unlabeled_training.pkl', zca)
+    ###########################################################################
 
-        # convert the training labels into one-hot format, as required by the pylearn2 model
-        train_labels = convert_to_one_hot(train_labels, dtype='int64', max_labels=7, mode='stack')
-        valid_labels = convert_to_one_hot(valid_labels, dtype='int64', max_labels=7, mode='stack')
+    # dictionary learning
+    #print type(unlabeled_training)
+    #code = DictionaryLearning(n_components=100)
+    #code.fit(unlabeled_training)
+    #code.transform(train_data)
+    #util.render_matrix(train_data[:20], flattened=True)
 
-        #print train_labels[:20]
-        #util.render_matrix(train_data[:20], flattened=True)
-        #print valid_labels[:20]
-        #util.render_matrix(valid_data[:20], flattened=True)
+    # create the spike-and-slab encoding dictionary
+    #unlabeled_training = DenseDesignMatrix(X=unlabeled_training)
+    #m, D = unlabeled_training.X.shape # number of visible units
+    #N = 300 # number of hidden units
 
-        labeled_training_matrix = DenseDesignMatrix(X=train_data, y=train_labels, view_converter=view_converter, y_labels=7)
-        labeled_validation_matrix = DenseDesignMatrix(X=valid_data, y=valid_labels, view_converter=view_converter, y_labels=7)
+    #s3c = S3C(nvis = D,
+    #    nhid = N,
+    #    irange = .1,
+    #    init_bias_hid = 0.,
+    #    init_B = 3.,
+    #    min_B = 1e-8,
+    #    max_B = 1000.,
+    #    init_alpha = 1., min_alpha = 1e-8, max_alpha = 1000.,
+    #    init_mu = 1., e_step = None,
+    #    m_step = Grad_M_Step(),
+    #    min_bias_hid = -1e30, max_bias_hid = 1e30,
+    #)
 
-        # First we want to pull out small patches of the images, since it's easier
-        # to train an RBM on these
-        #pipeline.items.append(
-            #preprocessing.ExtractPatches(patch_shape=(8, 8), num_patches=150000)
-        #)
+    #s3c.make_pseudoparams()
+    #s3c.learn(unlabeled_training, m)
 
-        # global contrast normalisation
-        gcn = preprocessing.GlobalContrastNormalization(subtract_mean=True, sqrt_bias=0.0, use_std=True)
-        labeled_training_matrix.apply_preprocessor(gcn)
-        labeled_validation_matrix.apply_preprocessor(gcn)
+    # pickle the data
+    serial.save('training_data_for_pylearn2.pkl', train_data)
+    serial.save('training_labels_for_pylearn2.pkl', train_labels)
+    serial.save('preprocessed_test_for_pylearn2.pkl', test_images)
 
-        # ZCA whitening
-        #zca = preprocessing.ZCA()
-        #zca.fit(unlabeled_training_matrix.get_design_matrix())
-        #labeled_training_matrix.apply_preprocessor(zca, can_fit=True) # can_fit=True means can fit whitening matrix to this dataset
-        #test_matrix.apply_preprocessor(zca, can_fit=False)
+    # test that pickling works
+    with open('training_data_for_pylearn2.pkl') as d:
+        data_check = pickle.load(d)
+    with open('training_labels_for_pylearn2.pkl') as l:
+        labels_check = pickle.load(l)
+    with open('preprocessed_test_for_pylearn2.pkl') as t:
+        test_check = pickle.load(t)
 
-        # Finally we save the dataset to the filesystem. We instruct the dataset to
-        # store its design matrix as a numpy file because this uses less memory
-        # when re-loading (Pickle files, in general, use double their actual size
-        # in the process of being re-loaded into a running process).
-        # The dataset object itself is stored as a pickle file.
-        labeled_training_matrix.use_design_loc('train_design.npy')
-        labeled_validation_matrix.use_design_loc('train_design.npy')
+    # check y's
+    for index in range(len(labels_check)):
+        for inner_index in range(len(labels_check[index])):
+            assert labels_check[index, inner_index] == train_labels[index, inner_index]
 
-        #print labeled_training_matrix.y[500:520]
-        #util.render_matrix(labeled_training_matrix.X[500:520], flattened=True)
-        #print valid_labels[:20]
-        #util.render_matrix(valid_data[:20], flattened=True)
+    # check x's
+    for index in range(len(data_check)):
+        for inner_index in range(len(data_check[index])):
+            assert data_check[index, inner_index] == train_data[index, inner_index]
 
-        print type(labeled_training_matrix.X)
-        with open('preprocessed_labeled_training_for_pylearn2_fold_{0}.pkl'.format(str(i)), 'wb') as f:
-            pickle.dump(labeled_training_matrix, f)
-        #serial.save('preprocessed_labeled_training_for_pylearn2_fold_{0}.pkl'.format(str(i)), labeled_training_matrix)
-        serial.save('preprocessed_labeled_validation_for_pylearn2_fold_{0}.pkl'.format(str(i)), labeled_validation_matrix)
-
-        with open('preprocessed_labeled_training_for_pylearn2_fold_{0}.pkl'.format(str(i))) as t:
-            train_check = pickle.load(t)
-        with open('preprocessed_labeled_validation_for_pylearn2_fold_{0}.pkl'.format(str(i))) as v:
-            val_check = pickle.load(v)
-
-        # check y's
-        for index in range(len(train_check.y)):
-            for inner_index in range(len(train_check.y[index])):
-                assert train_check.y[index, inner_index] == labeled_training_matrix.y[index, inner_index]
-
-
-        LHS = []
-        for inner_list in train_check.X:
-            LHS.append(str(inner_list))
-        RHS = []
-        for inner_list in labeled_training_matrix.X:
-            RHS.append(str(inner_list))
-
-        print set(LHS)
-        print set(RHS)
-        print len(set(LHS))
-
-        assert set(LHS) == set(RHS)
-
-        # check x's
-        for index in range(len(train_check.X)):
-            for inner_index in range(len(train_check.X[index])):
-                assert train_check.X[index, inner_index] == labeled_training_matrix.X[index, inner_index]
-
-    test_matrix.use_design_loc('train_design.npy')
-    serial.save('preprocessed_test_for_pylearn2.pkl', test_matrix)
+    # check test
+    for index in range(len(test_check)):
+        for inner_index in range(len(test_check[index])):
+            assert test_check[index, inner_index] == test_images[index, inner_index]
