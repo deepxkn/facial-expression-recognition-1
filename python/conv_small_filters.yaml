@@ -102,11 +102,11 @@
                     max_epochs: 200
                 },
                 !obj:pylearn2.termination_criteria.MonitorBased {
-                    channel_name: "test_y_misclass",
-                    prop_decrease: 0.02,
-                    N: 20
+                     channel_name: "test_y_misclass",
+                     prop_decrease: 0.10,
+                     N: 20
                 }
-            ]
+            ] 
         },
     },
     extensions: [
@@ -119,7 +119,8 @@
             start: 1,
             saturate: 868,
             decay_factor: 0.05
-        ,
+        },
+    ],
     # We save the model whenever we improve on the validation set classification error
     cv_extensions: [
         !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {
