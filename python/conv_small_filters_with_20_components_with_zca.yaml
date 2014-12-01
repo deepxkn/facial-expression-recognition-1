@@ -20,7 +20,7 @@
                 },
             },
             n_folds: 7,
-            shuffle: False
+            shuffle: True
         },
     model: !obj:pylearn2.models.mlp.MLP {
         batch_size: %(batch_size)i,

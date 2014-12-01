@@ -58,7 +58,7 @@ def get_dictionary_data(n_comp=20, zero_index=False):
     labeled_data, labels = util.load_labeled_training(flatten=False, zero_index=True)
     labeled_data = util.standardize(labeled_data)
 
-    test_data = util.load_hidden_test(flatten=False)
+    test_data = util.load_all_test(flatten=False)
     test_data = util.standardize(test_data)
 
     #util.render_matrix(test_data, flattened=False)
