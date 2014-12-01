@@ -21,7 +21,6 @@ import util
 import dictionary_learning
 
 if __name__ == "__main__":
-    # load the training data
 
     train_data, train_labels = util.load_labeled_training(flatten=True, zero_index=True)
     train_data = util.standardize(train_data)
