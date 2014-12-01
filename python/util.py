@@ -45,6 +45,15 @@ def load_pca_test(K=30):
     proj_test = pca.transform(test_images)
     return proj_test
 
+def load_pca_hidden(K=30):
+    test_images = load_hidden_test(flatten=True)
+    train_images = load_unlabeled_training(flatten=True)
+    test_images = standardize(test_images)
+    train_images = standardize(train_images)
+    pca = PCA(n_components=K).fit(train_images)
+    proj_test = pca.transform(test_images)
+    return proj_test
+
 def load_public_test(flatten=False):
     test = scipy.io.loadmat('../public_test_images.mat')
     images = np.array(test['public_test_images'], dtype='float32')
