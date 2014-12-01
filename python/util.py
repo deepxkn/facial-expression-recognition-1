@@ -61,6 +61,22 @@ def load_public_test(flatten=False):
 
     return images
 
+def load_hidden_test(flatten=False):
+    test = scipy.io.loadmat('../hidden_test_images.mat')
+    images = np.array(test['hidden_test_images'], dtype='float32')
+    # permute dimensions so that the number of instances is first
+    x, y, n = images.shape
+    images = np.transpose(images, [2, 0, 1])
+    assert images.shape == (n, x, y)
+
+    # flatten the pixel dimensions
+    if flatten is True:
+        n, x, y = images.shape
+        images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
+        assert images.shape == (n, x*y)
+
+    return images
+
 def standardize(images):
     images = images.astype(float)
     mean = np.mean(images,axis=1)
