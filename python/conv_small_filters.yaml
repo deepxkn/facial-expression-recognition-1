@@ -119,8 +119,7 @@
             start: 1,
             saturate: 868,
             decay_factor: 0.05
-        }
-    ],
+        ,
     # We save the model whenever we improve on the validation set classification error
     cv_extensions: [
         !obj:pylearn2.cross_validation.train_cv_extensions.MonitorBasedSaveBestCV {

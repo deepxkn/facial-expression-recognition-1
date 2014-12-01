@@ -68,8 +68,6 @@ def get_dictionary_data(n_comp=20, zero_index=False):
     reconstructed_images = np.empty((0, 32, 32))
 
     for i, image in enumerate(labeled_data):
-        print i
-
         data = extract_patches_2d(image, patch_size)
         data = data.reshape(data.shape[0], -1)
         data -= np.mean(data, axis=0)
