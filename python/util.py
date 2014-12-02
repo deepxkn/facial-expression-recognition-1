@@ -45,6 +45,15 @@ def load_pca_test(K=30):
     proj_test = pca.transform(test_images)
     return proj_test
 
+def load_pca_hidden(K=30):
+    test_images = load_hidden_test(flatten=True)
+    train_images = load_unlabeled_training(flatten=True)
+    test_images = standardize(test_images)
+    train_images = standardize(train_images)
+    pca = PCA(n_components=K).fit(train_images)
+    proj_test = pca.transform(test_images)
+    return proj_test
+
 def load_public_test(flatten=False):
     test = scipy.io.loadmat('../public_test_images.mat')
     images = np.array(test['public_test_images'], dtype='float32')
@@ -68,6 +77,30 @@ def load_hidden_test(flatten=False):
     x, y, n = images.shape
     images = np.transpose(images, [2, 0, 1])
     assert images.shape == (n, x, y)
+
+    # flatten the pixel dimensions
+    if flatten is True:
+        n, x, y = images.shape
+        images = images.reshape(images.shape[0], images.shape[1]*images.shape[2])
+        assert images.shape == (n, x*y)
+
+    return images
+
+def load_all_test(flatten=False):
+    public = scipy.io.loadmat('../public_test_images.mat')
+    hidden = scipy.io.loadmat('../hidden_test_images.mat')
+
+    a = np.array(public['public_test_images'], dtype='float32')
+    x, y, n = a.shape
+    a = np.transpose(a, [2, 0, 1])
+    assert a.shape == (n, x, y)
+
+    b = np.array(hidden['hidden_test_images'], dtype='float32')
+    x, y, n = b.shape
+    b = np.transpose(b, [2, 0, 1])
+    assert b.shape == (n, x, y)
+
+    images = np.concatenate([a, b])
 
     # flatten the pixel dimensions
     if flatten is True:
