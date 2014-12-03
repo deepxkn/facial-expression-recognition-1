@@ -1,3 +1,0 @@
-Configs tried:
-Single hidden layer: couldn't get cross validation above ~60
-200, 400 layers: Optimal neural net I found, trained with 0.005 LR, 0.005 WD
